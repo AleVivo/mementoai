@@ -1,0 +1,122 @@
+from typing import Optional
+from app.models.search import SearchResult
+from pymongo import AsyncMongoClient
+from bson import ObjectId
+from app.config import settings
+from app.models.entry import EntryDocument
+from datetime import datetime, timezone
+
+##MongoDB client setup
+
+client = AsyncMongoClient(
+    settings.mongodb_url,
+    username=settings.mongodb_user,
+    password=settings.mongodb_password,
+    directConnection=True)
+
+db = client[settings.mongodb_db]
+entries_collection = db["entries"]
+
+##Methods to interact with the database
+
+async def create_entry(entryDocument: EntryDocument) -> EntryDocument:
+    document = entryDocument.model_dump()
+    result = await entries_collection.insert_one(document)
+    saved = await entries_collection.find_one({"_id": result.inserted_id})
+    return EntryDocument(**saved)
+
+async def get_entries(
+        project: Optional[str],
+        type: Optional[str], 
+        week: Optional[str], 
+        limit: int, 
+        skip: int) -> list[EntryDocument]:
+    query = {}
+    if project:
+        query["project"] = project
+    if type:
+        query["type"] = type
+    if week:
+        query["week"] = week
+
+    cursor = db.entries.find(query).sort("created_at", -1).skip(skip).limit(limit)
+    docs = await cursor.to_list(length=limit)
+    return [EntryDocument(**doc) for doc in docs]
+
+async def get_entry_by_id(entry_id: str) -> Optional[EntryDocument]:
+    try:
+        oid = ObjectId(entry_id)
+    except Exception:
+        return None
+    
+    entry = await entries_collection.find_one({"_id": oid})
+    return EntryDocument(**entry) if entry else None
+
+async def delete_entry_by_id(entry_id: str) -> bool:
+    try:
+        oid = ObjectId(entry_id)
+    except Exception:
+        return False
+    
+    result = await entries_collection.delete_one({"_id": oid})
+    return result.deleted_count == 1
+
+async def update_entry(entry_id: str, fields: dict) -> Optional[EntryDocument]:
+    try:
+        oid = ObjectId(entry_id)
+    except Exception:
+        return None
+    
+    if not fields:
+        return await get_entry_by_id(entry_id)
+    
+    doc = await entries_collection.find_one_and_update(
+        {"_id": oid},
+        {"$set": fields},
+        return_document=True,
+    )
+    return EntryDocument(**doc) if doc else None
+
+async def vector_search(embedding: list[float], project: str | None = None, top_k: int = 5) -> list[SearchResult]:
+    """
+    Esegue una ricerca vettoriale su MongoDB usando $vectorSearch.
+    Restituisce le top_k entry più simili con il loro score.
+    """
+    vector_search_stage = {
+        "exact": False,
+        "index": "vector_index",
+        "path": "embedding",
+        "queryVector": embedding,
+        "numCandidates": top_k * 20,
+        "limit": top_k
+    }
+
+    if project:
+        vector_search_stage["filter"] = {"project": {"$eq": project}}
+
+    pipeline = [
+        {"$vectorSearch": vector_search_stage},
+        {
+            "$project": {
+                "embedding": 0,
+                "score": {"$meta": "vectorSearchScore"}
+            }
+        }
+    ]
+
+    cursor = await entries_collection.aggregate(pipeline)
+    docs = await cursor.to_list(length=top_k)
+    return [
+    SearchResult(
+        id=str(r["_id"]),
+        title=r["title"],
+        summary=r["summary"],
+        raw_text=r["raw_text"],
+        type=r["type"],
+        project=r["project"],
+        author=r["author"],
+        tags=r["tags"],
+        score=r["score"]
+    )
+    for r in docs
+]
