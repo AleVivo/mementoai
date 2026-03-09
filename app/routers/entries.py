@@ -4,6 +4,7 @@ from app.db import mongo
 from typing import List, Optional
 from app.services import entry_service
 
+
 router = APIRouter()
 
 @router.get("", response_model=List[EntryResponse])
@@ -41,3 +42,10 @@ async def delete_entry(entry_id: str):
     if not deleted:
         raise HTTPException(status_code=404, detail="Entry not found")
     return Response(status_code=204)
+
+@router.post("/{entry_id}/index", response_model=EntryResponse)
+async def index_entry(entry_id: str):
+    indexed = await entry_service.index_entry(entry_id)
+    if not indexed:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    return indexed

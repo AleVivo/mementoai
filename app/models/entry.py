@@ -9,6 +9,11 @@ class EntryType(str, Enum):
     postmortem = "postmortem"
     update = "update"
 
+class VectorStatus(str, Enum):
+    pending = "pending"
+    indexed = "indexed"
+    outdated = "outdated"
+
 class EntryCreate(BaseModel):
     raw_text: str
     type: EntryType
@@ -38,18 +43,20 @@ class EntryResponse(BaseModel):
     tags: list[str]
     created_at: datetime
     week: str
+    vector_status: VectorStatus
 
 class EntryDocument(BaseModel):
     id: Optional[ObjectId] = Field(default=None, alias="_id")
     raw_text: str
     type: EntryType
     title: str
-    summary: str
+    summary: str = ""
     project: str
     author: str
-    tags: list[str]
-    embedding: list[float]
+    tags: list[str] = []
+    embedding: list[float] = []
     created_at: datetime
     week: str
+    vector_status: VectorStatus = VectorStatus.pending
 
     model_config = {"arbitrary_types_allowed": True}

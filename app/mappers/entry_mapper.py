@@ -12,6 +12,7 @@ def doc_to_response(doc: EntryDocument) -> EntryResponse:
         summary=doc.summary or "",
         created_at=doc.created_at,
         week=doc.week,
+        vector_status=doc.vector_status,
     )
 
 def list_docs_to_responses(docs: list[EntryDocument]) -> list[EntryResponse]:

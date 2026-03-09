@@ -1,4 +1,4 @@
-from app.models.entry import EntryDocument, EntryResponse, EntryCreate, EntryUpdate
+from app.models.entry import EntryDocument, EntryResponse, EntryCreate, EntryUpdate, VectorStatus
 from app.db import mongo
 from app.mappers import entry_mapper
 from app.services import classifier, embedding
@@ -13,8 +13,6 @@ async def get_entry_by_id(entry_id: str) -> EntryResponse | None:
     return entry_mapper.doc_to_response(entry) if entry else None
 
 async def create_entry(entry: EntryCreate) -> EntryResponse:
-    enriched = await classifier.enrich_entry(entry.raw_text, entry.tags, entry.summary)
-    vector = await embedding.generate_embedding(entry.raw_text)
     now = datetime.now(timezone.utc)
     week = now.strftime("%Y-W%W")
 
@@ -24,11 +22,12 @@ async def create_entry(entry: EntryCreate) -> EntryResponse:
         title=entry.title,
         project=entry.project,
         author=entry.author,
-        tags=enriched["tags"],
-        summary=enriched["summary"],
-        embedding=vector,
+        tags=entry.tags or [],
+        summary=entry.summary or "",
+        embedding=[],
         created_at=now,
-        week=week
+        week=week,
+        vector_status=VectorStatus.pending,
     )
 
     saved = await mongo.create_entry(entryDocument)
@@ -38,12 +37,29 @@ async def update_entry(entry_id: str, update: EntryUpdate) -> EntryResponse | No
     existing = await mongo.get_entry_by_id(entry_id)
     if not existing:
         return None
-    
-    fields = update.model_dump(exclude_unset=True)
 
-    if "raw_text" in fields:
-        fields["embedding"] = await embedding.generate_embedding(fields["raw_text"])
-        
+    fields = update.model_dump(exclude_unset=True)
+    if fields:
+        fields["vector_status"] = VectorStatus.outdated
+
+    updated = await mongo.update_entry(entry_id, fields)
+    return entry_mapper.doc_to_response(updated) if updated else None
+
+async def index_entry(entry_id: str) -> EntryResponse | None:
+    existing = await mongo.get_entry_by_id(entry_id)
+    if not existing:
+        return None
+
+    enriched = await classifier.enrich_entry(existing.raw_text, existing.tags, existing.summary)
+    vector = await embedding.generate_embedding(existing.raw_text)
+
+    fields = {
+        "summary": enriched["summary"],
+        "tags": enriched["tags"],
+        "embedding": vector,
+        "vector_status": VectorStatus.indexed,
+    }
+
     updated = await mongo.update_entry(entry_id, fields)
     return entry_mapper.doc_to_response(updated) if updated else None
 
