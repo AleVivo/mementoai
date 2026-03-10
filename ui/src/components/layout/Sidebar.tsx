@@ -1,9 +1,10 @@
 import { useEffect } from "react";
-import { PanelLeftClose, Plus, MessageSquare } from "lucide-react";
+import { PanelLeftClose, MessageSquare } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useEntriesStore } from "@/store/entries.store";
 import { getEntries } from "@/api/entries";
 import { EntryList } from "@/components/entries/EntryList";
+import { NewEntryDialog } from "@/components/entries/NewEntryDialog";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -78,13 +79,7 @@ export function Sidebar() {
 
       {/* Footer actions */}
       <div className="flex items-center justify-between px-3 py-2 border-t border-[#E5E5E5]">
-        <button
-          onClick={() => setActiveEntryId(null)}
-          className="flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#1A1A1A] px-2 py-1 rounded hover:bg-[#E5E5E5]"
-        >
-          <Plus size={13} />
-          Nuova entry
-        </button>
+        <NewEntryDialog defaultProject={activeProject ?? ""} />
         <Tooltip>
           <TooltipTrigger asChild>
             <button onClick={toggleChat} className="p-1 rounded hover:bg-[#E5E5E5] text-[#6B7280]">

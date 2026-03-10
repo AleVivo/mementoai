@@ -3,11 +3,17 @@ import { useEntriesStore } from "@/store/entries.store";
 import { PanelLeft } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { EntryEditor } from "@/components/editor/EntryEditor";
+import { SearchBar } from "@/components/search/SearchBar";
+import { SearchResults } from "@/components/search/SearchResults";
+import { useSearch } from "@/hooks/useSearch";
 
 export function MainPanel() {
-  const { activeEntryId, isSidebarOpen, toggleSidebar } = useUIStore();
+  const { activeEntryId, isSidebarOpen, toggleSidebar, setActiveEntryId, activeProject } = useUIStore();
   const entries = useEntriesStore((s) => s.entries);
   const activeEntry = entries.find((e) => e.id === activeEntryId) ?? null;
+  const { query, setQuery, results, isSearching, clear } = useSearch(activeProject);
+
+  const isSearchMode = query.trim().length > 0;
 
   return (
     <main className="flex flex-col flex-1 min-w-0 h-full">
@@ -23,14 +29,29 @@ export function MainPanel() {
             <TooltipContent>Apri sidebar</TooltipContent>
           </Tooltip>
         )}
-        <span className="text-sm text-[#6B7280] truncate">
-          {activeEntry ? activeEntry.title : "Seleziona o crea una entry"}
-        </span>
+        <div className="flex-1 max-w-sm relative">
+          <SearchBar
+            value={query}
+            onChange={setQuery}
+            onClear={clear}
+            isSearching={isSearching}
+          />
+        </div>
+        {!isSearchMode && (
+          <span className="text-sm text-[#6B7280] truncate">
+            {activeEntry ? activeEntry.title : ""}
+          </span>
+        )}
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-hidden">
-        {activeEntry ? (
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {isSearchMode ? (
+          <SearchResults
+            results={results}
+            onSelect={(id) => { setActiveEntryId(id); clear(); }}
+          />
+        ) : activeEntry ? (
           <div className="max-w-3xl mx-auto px-8 py-8 h-full overflow-y-auto">
             <EntryEditor key={activeEntry.id} entry={activeEntry} />
           </div>

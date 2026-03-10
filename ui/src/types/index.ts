@@ -47,6 +47,7 @@ export interface SearchResult {
   id: string;
   title: string;
   content: string;
+  summary: string;
   author: string;
   project: string;
   entry_type: EntryType;
