@@ -22,7 +22,7 @@ MementoAI/
 │       ├── api/                ← Fetch wrappers (client.ts, entries.ts, search.ts, chat.ts)
 │       ├── components/
 │       │   ├── layout/         ← Sidebar.tsx, MainPanel.tsx, ChatPanel.tsx
-│       │   ├── editor/         ← EntryEditor.tsx, EditorToolbar.tsx, EntryMeta.tsx (to implement)
+│   │   ├── editor/         ← EntryEditor.tsx, EditorToolbar.tsx, EntryMeta.tsx
 │       │   ├── entries/        ← EntryList.tsx, EntryListItem.tsx, EntryTypeBadge.tsx
 │       │   ├── search/         ← SearchBar.tsx, SearchResults.tsx (to implement)
 │       │   └── ui/             ← shadcn/ui components (auto-generated)
@@ -70,8 +70,8 @@ class VectorStatus(str, Enum):
 
 class EntryResponse(BaseModel):
     id: str
-    raw_text: str
-    type: EntryType         # ← "type", not "entry_type"
+    content: str
+    entry_type: EntryType
     title: str
     summary: str
     project: str
@@ -81,13 +81,11 @@ class EntryResponse(BaseModel):
     week: str               # ISO week e.g. "2026-W10"
     vector_status: VectorStatus
 ```
-
 ---
 
 ## Frontend TypeScript Types (`ui/src/types/index.ts`)
 
-> ⚠️ **Field name mismatch with backend** — the frontend uses different names than the backend `EntryResponse`. 
-> When consuming API responses, map: `raw_text → content`, `type → entry_type`. This mapping must be done in the API layer (`api/entries.ts`).
+> Frontend and backend field names are aligned — no mapping needed in the API layer.
 
 ```typescript
 export type EntryType = "adr" | "postmortem" | "update" | "other";
@@ -96,8 +94,8 @@ export type VectorStatus = "pending" | "indexed" | "outdated";
 export interface Entry {
   id: string;
   title: string;
-  content: string;          // ← backend sends "raw_text"
-  entry_type: EntryType;    // ← backend sends "type"
+  content: string;          // ← mirrors EntryResponse.content
+  entry_type: EntryType;    // ← mirrors EntryResponse.entry_type
   author: string;
   project: string;
   tags: string[];
@@ -137,7 +135,7 @@ export interface SearchRequest {
 export interface SearchResult {
   id: string;
   title: string;
-  raw_text: string;
+  content: string;
   author: string;
   project: string;
   entry_type: EntryType;
@@ -211,7 +209,7 @@ interface ChatState {
 
 - **Async**: All service functions are `async def` — always `await`
 - **Save vs Index**: `PUT /entries/{id}` = persist only (no LLM). `POST /entries/{id}/index` = classifier + embedding (LLM). Never call embedding from `create_entry()` or `update_entry()`
-- **Models**: Pydantic v2. `EntryDocument` = MongoDB model (includes `embedding`). `EntryResponse` = API response (no embedding exposed)
+- **Models**: Pydantic v2. `EntryDocument` = MongoDB internal model (`content`, `entry_type`, includes `embedding`). `EntryResponse` / `EntryCreate` / `EntryUpdate` = API-facing DTOs (`content`, `entry_type`). The mapper translates between the two. Never expose `EntryDocument` directly.
 - **Errors**: Raise `HTTPException` in routers. Services return `None` for not-found
 
 ---

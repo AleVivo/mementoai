@@ -3,8 +3,8 @@ from app.models.entry import EntryResponse, EntryDocument
 def doc_to_response(doc: EntryDocument) -> EntryResponse:
     return EntryResponse(
         id=str(doc.id),
-        raw_text=doc.raw_text,
-        type=doc.type,
+        content=doc.content,
+        entry_type=doc.entry_type,
         title=doc.title,
         project=doc.project,
         author=doc.author,

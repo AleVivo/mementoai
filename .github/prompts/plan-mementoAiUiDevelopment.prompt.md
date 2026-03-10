@@ -51,7 +51,7 @@
 ## Fase 3 — Frontend: Foundation (tipi, API, store)
 
 ### 3.1 `src/types/index.ts`
-- Tipi come da frontend-spec.md: `EntryType`, `VectorStatus`, `Entry`, `EntryCreate`, `EntryUpdate`, `SearchRequest`, `SearchResult` (con `raw_text`, `author`, `tags`, `score`), `ChatRequest`
+- Tipi come da frontend-spec.md: `EntryType`, `VectorStatus`, `Entry`, `EntryCreate`, `EntryUpdate`, `SearchRequest`, `SearchResult` (con `content`, `author`, `tags`, `score`), `ChatRequest`
 
 ### 3.2 `src/api/client.ts`
 - `apiGet`, `apiPost`, `apiPut` come da spec
@@ -191,7 +191,7 @@
 
 ## Aggiornamenti doc (paralleli a Fase 1)
 
-- `docs/copilot-instructions.md`: aggiornare tabella API con endpoint index, aggiornare tipi TS con `VectorStatus` e `vector_status`, aggiornare `SearchResult` con campi mancanti (`raw_text`, `author`, `tags`)
+- `docs/copilot-instructions.md`: aggiornare tabella API con endpoint index, aggiornare tipi TS con `VectorStatus` e `vector_status`, aggiornare `SearchResult` con campi mancanti (`content`, `author`, `tags`)
 
 ---
 

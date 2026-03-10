@@ -20,28 +20,28 @@ entries_collection = db["entries"]
 ##Methods to interact with the database
 
 async def create_entry(entryDocument: EntryDocument) -> EntryDocument:
-    document = entryDocument.model_dump()
+    document = entryDocument.model_dump(by_alias=True, exclude_none=True)
     result = await entries_collection.insert_one(document)
     saved = await entries_collection.find_one({"_id": result.inserted_id})
-    return EntryDocument(**saved)
+    return EntryDocument.model_validate(saved)
 
 async def get_entries(
         project: Optional[str],
-        type: Optional[str], 
-        week: Optional[str], 
-        limit: int, 
+        entry_type: Optional[str],
+        week: Optional[str],
+        limit: int,
         skip: int) -> list[EntryDocument]:
     query = {}
     if project:
         query["project"] = project
-    if type:
-        query["type"] = type
+    if entry_type:
+        query["entry_type"] = entry_type
     if week:
         query["week"] = week
 
     cursor = db.entries.find(query).sort("created_at", -1).skip(skip).limit(limit)
     docs = await cursor.to_list(length=limit)
-    return [EntryDocument(**doc) for doc in docs]
+    return [EntryDocument.model_validate(doc) for doc in docs]
 
 async def get_entry_by_id(entry_id: str) -> Optional[EntryDocument]:
     try:
@@ -50,7 +50,7 @@ async def get_entry_by_id(entry_id: str) -> Optional[EntryDocument]:
         return None
     
     entry = await entries_collection.find_one({"_id": oid})
-    return EntryDocument(**entry) if entry else None
+    return EntryDocument.model_validate(entry) if entry else None
 
 async def delete_entry_by_id(entry_id: str) -> bool:
     try:
@@ -75,7 +75,7 @@ async def update_entry(entry_id: str, fields: dict) -> Optional[EntryDocument]:
         {"$set": fields},
         return_document=True,
     )
-    return EntryDocument(**doc) if doc else None
+    return EntryDocument.model_validate(doc) if doc else None
 
 async def vector_search(embedding: list[float], project: str | None = None, top_k: int = 5) -> list[SearchResult]:
     """
@@ -111,8 +111,8 @@ async def vector_search(embedding: list[float], project: str | None = None, top_
         id=str(r["_id"]),
         title=r["title"],
         summary=r["summary"],
-        raw_text=r["raw_text"],
-        type=r["type"],
+        content=r["content"],
+        entry_type=r["entry_type"],
         project=r["project"],
         author=r["author"],
         tags=r["tags"],

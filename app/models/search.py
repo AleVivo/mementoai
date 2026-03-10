@@ -10,8 +10,8 @@ class SearchResult(BaseModel):
     id: str
     title: str
     summary: str
-    raw_text: str
-    type: str
+    content: str
+    entry_type: str
     project: str
     author: str
     tags: list[str]

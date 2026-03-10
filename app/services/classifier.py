@@ -10,7 +10,7 @@ Il JSON deve avere esattamente questa struttura:
 }}
 
 Testo da analizzare:
-{raw_text}
+{content}
 
 Tag già presenti (non duplicare):
 {existing_tags}
@@ -20,9 +20,9 @@ Se il summary è già presente, mantieni lo stesso summary. Altrimenti, genera u
 
 Rispondi SOLO con il JSON."""
 
-async def enrich_entry(raw_text: str, user_tags: list[str] | None, existing_summary: str | None = None) -> dict:
+async def enrich_entry(content: str, user_tags: list[str] | None, existing_summary: str | None = None) -> dict:
     existing_tags = user_tags or []
-    prompt = ENRICH_PROMPT.format(raw_text=raw_text, existing_tags=", ".join(existing_tags), existing_summary=existing_summary or "")
+    prompt = ENRICH_PROMPT.format(content=content, existing_tags=", ".join(existing_tags), existing_summary=existing_summary or "")
     
     raw_response = await ollama.generate_by_prompt(prompt)
 
