@@ -46,7 +46,7 @@ export interface SearchRequest {
 export interface SearchResult {
   id: string;
   title: string;
-  raw_text: string;
+  content: string;
   author: string;
   project: string;
   entry_type: EntryType;

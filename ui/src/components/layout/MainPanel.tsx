@@ -2,6 +2,7 @@ import { useUIStore } from "@/store/ui.store";
 import { useEntriesStore } from "@/store/entries.store";
 import { PanelLeft } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { EntryEditor } from "@/components/editor/EntryEditor";
 
 export function MainPanel() {
   const { activeEntryId, isSidebarOpen, toggleSidebar } = useUIStore();
@@ -28,13 +29,10 @@ export function MainPanel() {
       </div>
 
       {/* Content area */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-hidden">
         {activeEntry ? (
-          <div className="max-w-3xl mx-auto px-8 py-8">
-            <p className="text-[#6B7280] text-sm">Editor — in arrivo (Fase 5)</p>
-            <pre className="mt-4 text-xs text-[#6B7280] whitespace-pre-wrap">
-              {JSON.stringify(activeEntry, null, 2)}
-            </pre>
+          <div className="max-w-3xl mx-auto px-8 py-8 h-full overflow-y-auto">
+            <EntryEditor key={activeEntry.id} entry={activeEntry} />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-[#6B7280]">
