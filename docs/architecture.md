@@ -78,9 +78,9 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 - `rag` — builds prompt context and calls Ollama for chat response
 - `ollama` — HTTP client wrapper for Ollama API
 
-## Frontend (to be built)
+## Frontend
 
-**Stack:** Tauri v2, React 19, Vite, TypeScript, TailwindCSS, shadcn/ui, TipTap, Zustand
+**Stack:** Tauri v2, React 19, Vite, TypeScript, TailwindCSS, shadcn/ui, TipTap ^3, Zustand, react-markdown
 
 See [frontend-spec.md](./frontend-spec.md) for full detail.
 
@@ -124,11 +124,13 @@ User types in search box
 
 ### RAG Chat
 ```
-User types question in chat panel
-  → POST /chat { question, project, top_k }
-  → Backend: semantic search → retrieve top-k entries
+User types question in chat panel (requires active project)
+  → POST /chat { question, project }
+  → Backend: semantic search → retrieve top-k entries scoped to project
   → Backend: build prompt with context → Ollama completion
-  → Streaming response rendered in chat bubble
+  → Response: { answer: string, sources: [{ ref, id, title, type, score }] }
+  → Answer rendered as markdown in chat bubble
+  → Sources shown as clickable references
 ```
 
 ## Deployment

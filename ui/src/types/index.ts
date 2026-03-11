@@ -62,12 +62,19 @@ export interface ChatMessage {
 }
 
 export interface ChatRequest {
-  message: string;
-  project?: string;
-  history?: ChatMessage[];
+  question: string;
+  project: string;
+}
+
+export interface ChatSource {
+  ref: number;
+  id: string;
+  title: string;
+  type: string;
+  score: number;
 }
 
 export interface ChatResponse {
   answer: string;
-  sources: SearchResult[];
+  sources: ChatSource[];
 }
