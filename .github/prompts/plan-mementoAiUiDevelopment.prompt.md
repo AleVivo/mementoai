@@ -51,7 +51,7 @@
 ## Fase 3 — Frontend: Foundation (tipi, API, store)
 
 ### 3.1 `src/types/index.ts`
-- Tipi come da frontend-spec.md: `EntryType`, `VectorStatus`, `Entry`, `EntryCreate`, `EntryUpdate`, `SearchRequest`, `SearchResult` (con `raw_text`, `author`, `tags`, `score`), `ChatRequest`
+- Tipi come da frontend-spec.md: `EntryType`, `VectorStatus`, `Entry`, `EntryCreate`, `EntryUpdate`, `SearchRequest`, `SearchResult` (con `content`, `author`, `tags`, `score`), `ChatRequest`
 
 ### 3.2 `src/api/client.ts`
 - `apiGet`, `apiPost`, `apiPut` come da spec
@@ -191,7 +191,7 @@
 
 ## Aggiornamenti doc (paralleli a Fase 1)
 
-- `docs/copilot-instructions.md`: aggiornare tabella API con endpoint index, aggiornare tipi TS con `VectorStatus` e `vector_status`, aggiornare `SearchResult` con campi mancanti (`raw_text`, `author`, `tags`)
+- `docs/copilot-instructions.md`: aggiornare tabella API con endpoint index, aggiornare tipi TS con `VectorStatus` e `vector_status`, aggiornare `SearchResult` con campi mancanti (`content`, `author`, `tags`)
 
 ---
 
@@ -208,3 +208,76 @@
 
 **Docs (aggiornamenti):**
 - `docs/copilot-instructions.md`
+
+---
+
+## Fase 10 — Frontend: UX Improvements
+
+### Phase A — Foundation *(prerequisiti, eseguibili in parallelo)*
+
+#### A1 — `src/hooks/useEntries.ts` *(parallel con A2)*
+- Estrae la logica di fetch entries dalla Sidebar
+- `GET /entries?project=activeProject` on mount + on `activeProject` change
+- Popola `entries.store` con `setEntries`, espone `{ isLoading, refetch }`
+
+#### A2 — Toast system *(parallel con A1)*
+- Installa `sonner`: `npm install sonner`
+- Aggiungi `<Toaster />` in `App.tsx`
+- Pattern uniforme: `toast.success/error/loading` per tutte le azioni utente
+
+### Phase B — Delete Entry *(dipende da A1+A2)*
+
+#### B1 — Icona cestino in `EntryListItem.tsx`
+- Icona `Trash2` (lucide) visibile su hover del row (`group/group-hover`)
+- On click: confirm → `deleteEntry(id)` → `removeEntry(id)` store → `toast.success`
+- Se entry eliminata è `activeEntryId` → `setActiveEntryId(null)`
+
+#### B2 — Pulsante Delete in `EditorToolbar.tsx`
+- Pulsante `Trash2` a destra nella toolbar con `Separator` divisore
+- Usa `AlertDialog` shadcn per conferma esplicita
+- Stessa logica di B1 dopo conferma
+
+### Phase C — Tag Pills *(indipendente)*
+
+#### C1 — Refactor tags in `EntryMeta.tsx`
+- Sostituisce input CSV con lista `<Badge>` con `×` per rimozione singola
+- Input testuale: Enter o virgola aggiunge il tag
+- On change → `setDirty(true)` → autosave invariato
+
+### Phase D — Summary editabile *(indipendente)*
+
+#### D1 — Summary in `EntryMeta.tsx`
+- `<textarea>` sotto i tag con label "Riepilogo"
+- Nota visiva: "Verrà rigenerato automaticamente al prossimo index"
+- On change → `setDirty(true)` → autosave
+
+### Phase E — Keyboard Shortcuts globali *(dipende da A1 per Ctrl+N)*
+
+#### E2 — `isNewEntryOpen` in `ui.store.ts`
+- Aggiungi `isNewEntryOpen: boolean` + `setNewEntryOpen(open)` allo store
+- `NewEntryDialog` usa questo stato invece dello state locale
+
+#### E1 — `src/hooks/useKeyboardShortcuts.ts`
+- `Ctrl+N` → `setNewEntryOpen(true)`
+- `Ctrl+J` → `toggleChat()`
+- `Ctrl+S` → save immediato se `isDirty`
+- `Ctrl+K` → focus su SearchBar (fallback globale)
+- Montato in `App.tsx`
+
+### Phase F — Loading Skeleton *(dipende da A1 per `isLoading`)*
+
+#### F1 — Skeleton in `EntryList.tsx`
+- Installa skeleton shadcn: `npx shadcn@latest add skeleton`
+- Quando `isLoading === true` → mostra 4-5 skeleton rows (badge + titolo + autore)
+- Quando `isLoading === false` → lista reale
+
+**Verifica Fase 10:**
+- Delete da sidebar: entry scompare + toast ✓
+- Delete da editor: editor si chiude + toast ✓
+- Tag pills: aggiunta/rimozione funzionante + autosave ✓
+- Summary: modifica manuale + persistenza ✓
+- Ctrl+N: apre dialog da qualsiasi stato ✓
+- Ctrl+J: toggle chat ✓
+- Ctrl+S: save immediato ✓
+- Skeleton visibile durante caricamento ✓
+> Dopo questa fase esegui: [code-review-cleanup](./code-review-cleanup.prompt.md)

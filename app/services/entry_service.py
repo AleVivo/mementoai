@@ -4,8 +4,8 @@ from app.mappers import entry_mapper
 from app.services import classifier, embedding
 from datetime import datetime, timezone
 
-async def get_entries(project: str | None, type: str | None, week: str | None, limit: int, skip: int) -> list[EntryResponse]:
-    entries = await mongo.get_entries(project=project, type=type, week=week, limit=limit, skip=skip)
+async def get_entries(project: str | None, entry_type: str | None, week: str | None, limit: int, skip: int) -> list[EntryResponse]:
+    entries = await mongo.get_entries(project=project, entry_type=entry_type, week=week, limit=limit, skip=skip)
     return entry_mapper.list_docs_to_responses(entries)
 
 async def get_entry_by_id(entry_id: str) -> EntryResponse | None:
@@ -17,8 +17,8 @@ async def create_entry(entry: EntryCreate) -> EntryResponse:
     week = now.strftime("%Y-W%W")
 
     entryDocument = EntryDocument(
-        raw_text=entry.raw_text,
-        type=entry.type,
+        content=entry.content,
+        entry_type=entry.entry_type,
         title=entry.title,
         project=entry.project,
         author=entry.author,
@@ -38,7 +38,7 @@ async def update_entry(entry_id: str, update: EntryUpdate) -> EntryResponse | No
     if not existing:
         return None
 
-    fields = update.model_dump(exclude_unset=True)
+    fields = update.model_dump(exclude_unset=True)    
     if fields:
         fields["vector_status"] = VectorStatus.outdated
 
@@ -50,8 +50,8 @@ async def index_entry(entry_id: str) -> EntryResponse | None:
     if not existing:
         return None
 
-    enriched = await classifier.enrich_entry(existing.raw_text, existing.tags, existing.summary)
-    vector = await embedding.generate_embedding(existing.raw_text)
+    enriched = await classifier.enrich_entry(existing.content, existing.tags, existing.summary)
+    vector = await embedding.generate_embedding(existing.content)
 
     fields = {
         "summary": enriched["summary"],

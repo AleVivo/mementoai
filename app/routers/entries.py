@@ -10,12 +10,12 @@ router = APIRouter()
 @router.get("", response_model=List[EntryResponse])
 async def get_entries(
     project: Optional[str] = Query(default=None, description="Filter entries by project"),
-    type: Optional[str] = Query(default=None, description="Filter entries by type"),
+    entry_type: Optional[str] = Query(default=None, description="Filter entries by entry_type"),
     week: Optional[str] = Query(default=None, description="Filter entries by week (format: YYYY-Www)"),
     limit: int = Query(default=20, ge=1, le=100, description="Number of entries to return"),
     skip: int = Query(default=0, ge=0, description="Number of entries to skip for pagination")
 ):
-    return await entry_service.get_entries(project=project, type=type, week=week, limit=limit, skip=skip)
+    return await entry_service.get_entries(project=project, entry_type=entry_type, week=week, limit=limit, skip=skip)
 
 @router.get("/{entry_id}", response_model=EntryResponse)
 async def get_entry_by_id(entry_id: str):

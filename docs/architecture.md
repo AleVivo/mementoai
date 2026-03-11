@@ -57,11 +57,11 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 | Field | Type | Description |
 |---|---|---|
 | `id` | `str` | MongoDB ObjectId |
-| `type` | `EntryType` | `adr` \| `postmortem` \| `update` |
+| `entry_type` | `EntryType` | `adr` \| `postmortem` \| `update` |
 | `title` | `str` | Document title |
 | `project` | `str` | Project/team namespace |
 | `author` | `str` | Author name |
-| `raw_text` | `str` | Full markdown content |
+| `content` | `str` | Full markdown content |
 | `summary` | `str` | AI-generated summary |
 | `tags` | `list[str]` | Classification tags |
 | `embedding` | `list[float]` | Vector embedding (stored, not exposed) |
@@ -78,9 +78,9 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 - `rag` — builds prompt context and calls Ollama for chat response
 - `ollama` — HTTP client wrapper for Ollama API
 
-## Frontend (to be built)
+## Frontend
 
-**Stack:** Tauri v2, React 19, Vite, TypeScript, TailwindCSS, shadcn/ui, TipTap, Zustand
+**Stack:** Tauri v2, React 19, Vite, TypeScript, TailwindCSS, shadcn/ui, TipTap ^3, Zustand, react-markdown
 
 See [frontend-spec.md](./frontend-spec.md) for full detail.
 
@@ -88,7 +88,7 @@ See [frontend-spec.md](./frontend-spec.md) for full detail.
 
 ### Create Entry
 ```
-POST /entries { raw_text, type, title, project, author }
+POST /entries { content, entry_type, title, project, author }
   → Stored in MongoDB with vector_status = "pending"
   → Response: EntryResponse (fast, no LLM)
   → UI: entry aperta nell'editor, indicatore "⚠ Not indexed"
@@ -96,7 +96,7 @@ POST /entries { raw_text, type, title, project, author }
 
 ### Save Entry (autosave / Cmd+S)
 ```
-PUT /entries/:id { raw_text, title, ... }
+PUT /entries/:id { content, title, ... }
   → MongoDB update (solo dati, no LLM)
   → vector_status = "outdated"
   → Response: EntryResponse aggiornata (fast)
@@ -105,7 +105,7 @@ PUT /entries/:id { raw_text, title, ... }
 ### Index Entry
 ```
 POST /entries/:id/index  (trigger: onBlur editor o manuale)
-  → Backend: legge raw_text corrente
+  → Backend: legge content corrente
   → classifier → summary + tags  (LLM call)
   → embedding  → vettore         (Ollama call)
   → MongoDB: aggiorna embedding, summary, tags, vector_status = "indexed"
@@ -124,11 +124,13 @@ User types in search box
 
 ### RAG Chat
 ```
-User types question in chat panel
-  → POST /chat { question, project, top_k }
-  → Backend: semantic search → retrieve top-k entries
+User types question in chat panel (requires active project)
+  → POST /chat { question, project }
+  → Backend: semantic search → retrieve top-k entries scoped to project
   → Backend: build prompt with context → Ollama completion
-  → Streaming response rendered in chat bubble
+  → Response: { answer: string, sources: [{ ref, id, title, type, score }] }
+  → Answer rendered as markdown in chat bubble
+  → Sources shown as clickable references
 ```
 
 ## Deployment

@@ -14,7 +14,7 @@ async def return_chat_response(question: str, results: list[SearchResult]) -> di
             f"Source {i+1}:\n"
             f"Title: {entry.title}\n"
             f"Summary: {entry.summary}\n"
-            f"Raw Text: {entry.raw_text}\n"
+            f"Raw Text: {entry.content}\n"
         )
     context = "\n\n---\n\n".join(context_parts)
 
@@ -37,7 +37,7 @@ RISPOSTA:"""
                 "ref": i + 1,
                 "id": entry.id,
                 "title": entry.title,
-                "type": entry.type,
+                "type": entry.entry_type,
                 "score": entry.score
             } for i, entry in enumerate(results)
         ]

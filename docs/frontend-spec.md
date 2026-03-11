@@ -10,7 +10,8 @@
 | Language | **TypeScript** | ^5.5 | Type safety, better DX |
 | Styling | **TailwindCSS** | ^4.0 | Utility-first, Notion-like minimal design |
 | Component library | **shadcn/ui** | latest | Unstyled accessible components, Tailwind-native |
-| Rich text editor | **TipTap** | ^2.x | Block-based editor (Notion-like), React adapter |
+| Rich text editor | **TipTap** | ^3.x | Block-based editor (Notion-like), React adapter |
+| Markdown rendering | **react-markdown** | latest | AI chat response rendering |
 | State management | **Zustand** | ^5.0 | Minimal, no boilerplate |
 | HTTP client | **fetch** (native) | — | Native browser fetch via Tauri WebView |
 | Icons | **Lucide React** | latest | Clean minimal icon set |
@@ -30,33 +31,33 @@ ui/                          ← Tauri frontend root
 │   ├── components/
 │   │   ├── layout/
 │   │   │   ├── Sidebar.tsx         ← Left nav: projects + entries list
-│   │   │   ├── MainPanel.tsx       ← Right area: editor or search results
-│   │   │   └── ChatPanel.tsx       ← Collapsible right chat drawer
+│   │   │   └── MainPanel.tsx       ← Right area: editor or search results
 │   │   ├── editor/
-│   │   │   ├── EntryEditor.tsx     ← TipTap-based block editor
-│   │   │   ├── EditorToolbar.tsx   ← Formatting toolbar
-│   │   │   └── EntryMeta.tsx       ← Title, type, project, author fields
+│   │   │   ├── EntryEditor.tsx     ← TipTap-based block editor (autosave 1.5s, index on blur)
+│   │   │   ├── EditorToolbar.tsx   ← Formatting toolbar + save/index status indicators
+│   │   │   └── EntryMeta.tsx       ← Title, type, author, tags, vector status badge
 │   │   ├── entries/
 │   │   │   ├── EntryList.tsx       ← Sidebar entries list
 │   │   │   ├── EntryListItem.tsx   ← Single entry row in sidebar
-│   │   │   └── EntryTypeBadge.tsx  ← ADR / Postmortem / Update badge
+│   │   │   ├── EntryTypeBadge.tsx  ← ADR / Postmortem / Update badge
+│   │   │   └── NewEntryDialog.tsx  ← shadcn Dialog for creating new entries
 │   │   ├── search/
-│   │   │   ├── SearchBar.tsx       ← Semantic search input (debounced)
-│   │   │   └── SearchResults.tsx   ← Results list
+│   │   │   ├── SearchBar.tsx       ← Semantic search input (debounced 300ms, Ctrl+K)
+│   │   │   └── SearchResults.tsx   ← Results list with score, type, summary
 │   │   ├── chat/
-│   │   │   ├── ChatDrawer.tsx      ← Slide-in chat panel
-│   │   │   ├── ChatInput.tsx       ← Question input
-│   │   │   ├── ChatMessage.tsx     ← Individual message bubble
-│   │   │   └── ChatHistory.tsx     ← Messages scroll container
+│   │   │   ├── ChatDrawer.tsx      ← vaul Drawer from right, uses isChatOpen from store
+│   │   │   ├── ChatInput.tsx       ← Textarea, Enter sends, Shift+Enter newline
+│   │   │   ├── ChatMessage.tsx     ← User bubble (right) + AI bubble (left, markdown rendered)
+│   │   │   └── ChatHistory.tsx     ← ScrollArea with auto-scroll to bottom
 │   │   └── ui/                     ← shadcn/ui components (auto-generated)
 │   ├── store/
 │   │   ├── entries.store.ts        ← Zustand: entries state + actions
 │   │   ├── ui.store.ts             ← Zustand: sidebar open, active entry, chat open, dirty/saving/indexing state
-│   │   └── chat.store.ts           ← Zustand: chat history per project
+│   │   └── chat.store.ts           ← Zustand: messages per project, isWaiting
 │   ├── hooks/
-│   │   ├── useEntries.ts           ← Fetch + cache entries
-│   │   ├── useSearch.ts            ← Debounced semantic search
-│   │   └── useChat.ts              ← Chat send + response handling
+│   │   ├── useEntries.ts           ← Fetch entries on project change, popola store
+│   │   ├── useSearch.ts            ← Debounced semantic search (300ms)
+│   │   └── useChat.ts              ← send(question) → POST /chat → addMessage to store
 │   ├── types/
 │   │   └── index.ts                ← TypeScript types mirroring backend models
 │   └── lib/
@@ -78,14 +79,14 @@ Mirror the backend Pydantic models exactly:
 ```typescript
 // types/index.ts
 
-export type EntryType = 'adr' | 'postmortem' | 'update';
+export type EntryType = 'adr' | 'postmortem' | 'update' | 'other';
 
 export type VectorStatus = 'pending' | 'indexed' | 'outdated';
 
 export interface Entry {
   id: string;
-  raw_text: string;
-  type: EntryType;
+  content: string;
+  entry_type: EntryType;
   title: string;
   summary: string;
   project: string;
@@ -97,8 +98,8 @@ export interface Entry {
 }
 
 export interface EntryCreate {
-  raw_text: string;
-  type: EntryType;
+  content: string;
+  entry_type: EntryType;
   title: string;
   project: string;
   author: string;
@@ -107,8 +108,8 @@ export interface EntryCreate {
 }
 
 export interface EntryUpdate {
-  raw_text?: string;
-  type?: EntryType;
+  content?: string;
+  entry_type?: EntryType;
   title?: string;
   project?: string;
   author?: string;
@@ -123,20 +124,39 @@ export interface SearchRequest {
 }
 
 export interface SearchResult {
-  // mirrors SearchResult from backend
   id: string;
   title: string;
+  content: string;
   summary: string;
-  score: number;
-  type: EntryType;
+  author: string;
   project: string;
-  week: string;
+  entry_type: EntryType;
+  tags: string[];
+  score: number;
+  created_at: string;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 export interface ChatRequest {
   question: string;
-  project: string;
-  top_k?: number;
+  project: string;       // obbligatorio — la chat è sempre scoped a un progetto
+}
+
+export interface ChatSource {
+  ref: number;
+  id: string;
+  title: string;
+  type: string;
+  score: number;
+}
+
+export interface ChatResponse {
+  answer: string;
+  sources: ChatSource[];
 }
 ```
 

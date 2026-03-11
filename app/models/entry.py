@@ -15,8 +15,8 @@ class VectorStatus(str, Enum):
     outdated = "outdated"
 
 class EntryCreate(BaseModel):
-    raw_text: str
-    type: EntryType
+    content: str
+    entry_type: EntryType
     title: str
     project: str
     author: str
@@ -24,8 +24,8 @@ class EntryCreate(BaseModel):
     tags: Optional[list[str]] = None
 
 class EntryUpdate(BaseModel):
-    raw_text: Optional[str] = None
-    type: Optional[EntryType] = None
+    content: Optional[str] = None
+    entry_type: Optional[EntryType] = None
     title: Optional[str] = None
     project: Optional[str] = None
     author: Optional[str] = None
@@ -34,8 +34,8 @@ class EntryUpdate(BaseModel):
 
 class EntryResponse(BaseModel):
     id: str
-    raw_text: str
-    type: EntryType
+    content: str
+    entry_type: EntryType
     title: str
     summary: str
     project: str
@@ -47,8 +47,8 @@ class EntryResponse(BaseModel):
 
 class EntryDocument(BaseModel):
     id: Optional[ObjectId] = Field(default=None, alias="_id")
-    raw_text: str
-    type: EntryType
+    content: str
+    entry_type: EntryType
     title: str
     summary: str = ""
     project: str
@@ -59,4 +59,4 @@ class EntryDocument(BaseModel):
     week: str
     vector_status: VectorStatus = VectorStatus.pending
 
-    model_config = {"arbitrary_types_allowed": True}
+    model_config = {"arbitrary_types_allowed": True, "populate_by_name": True}

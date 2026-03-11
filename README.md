@@ -4,12 +4,23 @@ Knowledge base conversazionale per team di sviluppo piccoli. Permette di cattura
 
 ---
 
+> **Nota sperimentale — Frontend**
+> Il frontend desktop (`ui/`) è stato sviluppato interamente con **GitHub Copilot** (Claude Sonnet 4.6) come esperimento di sviluppo AI-assisted. Lo stack scelto (Tauri v2 + React + TipTap + shadcn/ui) era sconosciuto all'autore prima di questo progetto. L'obiettivo era valutare fino a che punto un agente AI può guidare lo sviluppo su tecnologie mai usate, dalla scelta dello stack all'implementazione.
+
+---
+
 ## Prerequisiti
 
+### Backend
 - [Python 3.13+](https://www.python.org/downloads/)
 - [uv](https://docs.astral.sh/uv/) — package manager Python
 - [Ollama](https://ollama.com/) in esecuzione su `localhost:11434`
 - MongoDB 8.2+ configurato come replica set (richiesto per `$vectorSearch`)
+
+### Frontend (desktop app)
+- [Node.js 20+](https://nodejs.org/)
+- [Rust + cargo](https://rustup.rs/) — toolchain `stable-x86_64-pc-windows-msvc`
+- **Windows:** [Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) con workload *Sviluppo di applicazioni desktop con C++* (richiesto da Rust per il linker `link.exe`)
 
 ### Modelli Ollama richiesti
 
@@ -54,7 +65,12 @@ uv legge `pyproject.toml`, crea automaticamente il virtual environment in `.venv
 
 ## Avvio
 
+> Avvia sempre il backend **prima** del frontend.
+
+### 1. Backend
+
 ```bash
+# Dalla root del progetto
 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -65,6 +81,30 @@ L'API è disponibile su:
 - **Swagger UI:** `http://localhost:8000/docs`
 - **ReDoc:** `http://localhost:8000/redoc`
 
+### 2. Frontend (Tauri desktop app)
+
+```bash
+cd ui
+npm install        # solo la prima volta
+npm run tauri dev
+```
+
+Alla prima esecuzione Rust compila il layer nativo — richiede 2-5 minuti. Le esecuzioni successive sono molto più veloci grazie alla cache di Cargo.
+
+La finestra desktop si apre automaticamente e punta al backend su `http://localhost:8000`.
+
+> **Modifche al codice React** (`.tsx`/`.ts`) si riflettono live via HMR senza ricompilare Rust.  
+> **Modifiche a `src-tauri/`** (configurazione Tauri, codice Rust) richiedono ricompilazione automatica.
+
+### Build produzione
+
+```bash
+cd ui
+npm run tauri build
+```
+
+Produce un installer `.exe` standalone in `ui/src-tauri/target/release/bundle/`.
+
 ---
 
 ## Struttura del progetto
@@ -74,10 +114,16 @@ MementoAI/
 ├── app/
 │   ├── main.py           # FastAPI entrypoint + lifespan
 │   ├── config.py         # Settings con pydantic-settings
-│   ├── models/           # Modelli Pydantic (EntryCreate, EntryInDB, EntryResponse, SearchResult)
+│   ├── models/           # Modelli Pydantic (Entry, VectorStatus, SearchResult...)
 │   ├── routers/          # Endpoint API (entries, search, chat)
 │   ├── services/         # Logica di business (ollama, classifier, embedding, rag)
 │   └── db/               # Connessione e query MongoDB
+├── ui/                   # Desktop app Tauri v2 + React + TipTap
+│   ├── src/              # Codice React (types, api, store, components)
+│   ├── src-tauri/        # Layer Rust + configurazione Tauri
+│   └── package.json
+├── docs/                 # Architettura, spec frontend, istruzioni Copilot
+├── .github/prompts/      # Prompt Copilot per sviluppo guidato
 ├── .env                  # NON committare — variabili locali
 ├── .env.example          # Template variabili d'ambiente
 ├── pyproject.toml        # Dipendenze e metadati progetto
@@ -90,10 +136,11 @@ MementoAI/
 
 | Metodo | Endpoint | Descrizione |
 |---|---|---|
-| `POST` | `/entries` | Crea una nuova entry (genera summary e embedding via Ollama) |
+| `POST` | `/entries` | Crea una nuova entry (no LLM — solo persistenza) |
 | `GET` | `/entries` | Lista entries con filtri (`project`, `type`, `week`, `limit`, `skip`) |
 | `GET` | `/entries/{id}` | Singola entry per ID |
-| `PUT` | `/entries/{id}` | Aggiorna entry (ricalcola embedding se `raw_text` cambia) |
+| `PUT` | `/entries/{id}` | Aggiorna entry (no LLM — imposta `vector_status: outdated`) |
+| `POST` | `/entries/{id}/index` | Avvia pipeline LLM: genera summary, tags e embedding vettoriale |
 | `DELETE` | `/entries/{id}` | Elimina entry |
 | `POST` | `/search` | Ricerca semantica vettoriale con score di cosine similarity |
 | `POST` | `/chat` | Chat RAG — risponde in linguaggio naturale citando le fonti |
