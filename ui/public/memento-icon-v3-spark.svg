@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Background dark — variante invertita -->
+  <rect width="512" height="512" rx="112" fill="#1A1A1A"/>
+  <!-- Tre linee che convergono verso un punto — insight, focus, ricerca -->
+  <line x1="100" y1="130" x2="280" y2="256" stroke="#F5F4F0" stroke-width="36" stroke-linecap="round"/>
+  <line x1="100" y1="382" x2="280" y2="256" stroke="#F5F4F0" stroke-width="36" stroke-linecap="round"/>
+  <line x1="412" y1="256" x2="280" y2="256" stroke="#F5F4F0" stroke-width="36" stroke-linecap="round"/>
+  <circle cx="280" cy="256" r="30" fill="#F5F4F0"/>
+</svg>
