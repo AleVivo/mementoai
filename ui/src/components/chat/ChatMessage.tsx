@@ -9,12 +9,12 @@ export function ChatMessage({ message }: Props) {
   const isUser = message.role === "user";
   return (
     <div className={`flex flex-col gap-0.5 ${isUser ? "items-end" : "items-start"}`}>
-      <span className="text-[10px] text-[#6B7280]">{isUser ? "Tu" : "AI"}</span>
+      <span className="text-[10px] text-[var(--text-muted-ui)]">{isUser ? "Tu" : "AI"}</span>
       <div
-        className={`text-sm px-3 py-2 rounded-lg max-w-[85%] ${
+        className={`text-sm px-4 py-2.5 max-w-[85%] ${
           isUser
-            ? "bg-[#1A1A1A] text-white whitespace-pre-wrap"
-            : "bg-[#F0F0F0] text-[#1A1A1A]"
+            ? "bg-[var(--accent-ui)] text-white rounded-2xl rounded-br-sm whitespace-pre-wrap"
+            : "bg-[var(--bg-hover)] text-foreground rounded-2xl rounded-bl-sm"
         }`}
       >
         {isUser ? (
@@ -26,7 +26,7 @@ export function ChatMessage({ message }: Props) {
               ul: ({ children }) => <ul className="list-disc pl-4 mb-1">{children}</ul>,
               ol: ({ children }) => <ol className="list-decimal pl-4 mb-1">{children}</ol>,
               code: ({ children }) => (
-                <code className="bg-white/60 rounded px-1 text-xs font-mono">{children}</code>
+                <code className="bg-background/60 rounded px-1 text-xs font-mono">{children}</code>
               ),
               strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
             }}

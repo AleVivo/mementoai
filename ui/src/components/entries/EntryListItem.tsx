@@ -51,15 +51,15 @@ export function EntryListItem({ entry, isActive, onSelect }: EntryListItemProps)
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className={cn(
-        "flex flex-col items-start gap-0.5 px-3 py-2 text-left w-full hover:bg-[#EBEBEB] transition-colors cursor-pointer relative",
-        isActive && "bg-[#E5E5E5]"
+        "flex flex-col items-start gap-1 p-3 text-left w-full hover:bg-[var(--bg-hover)] transition-colors cursor-pointer relative",
+        isActive && "bg-[var(--bg-hover)]"
       )}
       onClick={onSelect}
     >
-      <div className="flex items-center gap-1.5 w-full min-w-0">
+      <div className="flex items-center gap-2 w-full min-w-0">
         <EntryTypeBadge type={entry.entry_type} />
-        <span className="text-xs font-medium text-[#1A1A1A] truncate flex-1">{entry.title}</span>
-        {isHovered && (
+        <span className="text-sm font-medium text-foreground truncate flex-1">{entry.title}</span>
+        {(isHovered || isActive) && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <span
@@ -67,7 +67,7 @@ export function EntryListItem({ entry, isActive, onSelect }: EntryListItemProps)
                 onClick={(e) => e.stopPropagation()}
                 title="Elimina"
                 className={cn(
-                  "shrink-0 p-0.5 rounded text-[#9CA3AF] hover:text-red-500 hover:bg-red-50 transition-colors",
+                  "shrink-0 p-1 rounded-md text-[var(--text-muted-ui)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors",
                   isDeleting && "opacity-50 pointer-events-none"
                 )}
               >
@@ -78,7 +78,7 @@ export function EntryListItem({ entry, isActive, onSelect }: EntryListItemProps)
               <AlertDialogHeader>
                 <AlertDialogTitle>Eliminare questa entry?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Stai per eliminare <strong>"{entry.title}"</strong>. Questa azione non può essere annullata.
+                  Stai per eliminare <strong>&quot;{entry.title}&quot;</strong>. Questa azione non può essere annullata.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -94,7 +94,7 @@ export function EntryListItem({ entry, isActive, onSelect }: EntryListItemProps)
           </AlertDialog>
         )}
       </div>
-      <span className="text-[11px] text-[#9CA3AF] truncate w-full">
+      <span className="text-xs text-[var(--text-muted-ui)] truncate w-full">
         {entry.author} · {entry.project}
       </span>
     </div>

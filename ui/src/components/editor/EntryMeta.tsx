@@ -92,7 +92,7 @@ export function EntryMeta({
 
   const statusEl =
     isSaving ? (
-      <span className="text-xs text-[#6B7280]">Salvataggio...</span>
+      <span className="text-xs text-[var(--text-muted-ui)]">Salvataggio...</span>
     ) : isIndexing ? (
       <span className="text-xs text-amber-500">Indicizzazione...</span>
     ) : !showIndexed && (entry.vector_status === "pending" || entry.vector_status === "outdated") ? (
@@ -101,17 +101,17 @@ export function EntryMeta({
         {entry.vector_status === "outdated" ? "Non indicizzato" : "In attesa"}
       </span>
     ) : showIndexed ? (
-      <span className="flex items-center gap-1 text-xs text-green-600">
+      <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-500">
         <CheckCircle2 size={12} />
         Indicizzato
       </span>
     ) : null;
 
   return (
-    <div className="flex flex-col gap-3 mb-6">
+    <div className="flex flex-col gap-5 mb-8">
       {/* Title */}
       <input
-        className="text-2xl font-semibold text-[#1A1A1A] bg-transparent border-none outline-none placeholder:text-[#9CA3AF] w-full"
+        className="text-3xl font-semibold text-foreground bg-transparent border-none outline-none placeholder:text-[var(--text-muted-ui)] w-full"
         placeholder="Titolo senza titolo"
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}
@@ -132,34 +132,34 @@ export function EntryMeta({
         </Select>
 
         <input
-          className="text-sm text-[#6B7280] bg-transparent border-none outline-none placeholder:text-[#9CA3AF]"
+          className="text-sm text-[var(--text-muted-ui)] bg-transparent border-none outline-none placeholder:text-[var(--text-muted-ui)]"
           placeholder="Autore"
           value={author}
           onChange={(e) => onAuthorChange(e.target.value)}
         />
 
-        <span className="text-[#E5E5E5]">·</span>
+        <span className="text-[var(--border-ui)]">·</span>
 
-        <span className="text-sm text-[#6B7280]">{entry.project}</span>
+        <span className="text-sm text-[var(--text-muted-ui)]">{entry.project}</span>
 
         {statusEl && <span className="ml-auto">{statusEl}</span>}
       </div>
 
       {/* Tags — pill editor */}
       <div
-        className="flex flex-wrap items-center gap-1 min-h-[28px] px-2 py-1 rounded border border-[#E5E5E5] bg-[#FAFAFA] cursor-text"
+        className="flex flex-wrap items-center gap-1 min-h-[32px] px-2 py-1 rounded-lg border border-[var(--border-ui)] bg-[var(--bg-subtle)] cursor-text"
         onClick={() => tagInputRef.current?.focus()}
       >
         {tags.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E5E5E5] text-xs text-[#1A1A1A]"
+            className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[var(--bg-hover)] text-xs text-foreground"
           >
             {tag}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); removeTag(tag); }}
-              className="text-[#6B7280] hover:text-[#1A1A1A] leading-none"
+              className="text-[var(--text-muted-ui)] hover:text-foreground leading-none"
             >
               <X size={10} />
             </button>
@@ -167,7 +167,7 @@ export function EntryMeta({
         ))}
         <input
           ref={tagInputRef}
-          className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-xs text-[#1A1A1A] placeholder:text-[#9CA3AF]"
+          className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-xs text-foreground placeholder:text-[var(--text-muted-ui)]"
           placeholder={tags.length === 0 ? "Aggiungi tag (Invio o ,)" : ""}
           value={tagInput}
           onChange={(e) => setTagInput(e.target.value)}
@@ -178,14 +178,14 @@ export function EntryMeta({
 
       {/* Summary */}
       <div className="flex flex-col gap-1">
-        <label className="text-[11px] text-[#9CA3AF] uppercase tracking-wide">
+        <label className="text-[11px] text-[var(--text-muted-ui)] uppercase tracking-wide">
           Sommario{" "}
-          <span className="normal-case tracking-normal text-[#9CA3AF]">
+          <span className="normal-case tracking-normal">
             (auto-generato all'indicizzazione se vuoto)
           </span>
         </label>
         <textarea
-          className="text-sm text-[#6B7280] bg-transparent border border-[#E5E5E5] rounded px-2 py-1.5 outline-none placeholder:text-[#9CA3AF] resize-none focus:border-[#6B7280]"
+          className="text-sm text-[var(--text-muted-ui)] bg-[var(--bg-subtle)] border border-[var(--border-ui)] rounded-lg px-3 py-2 outline-none placeholder:text-[var(--text-muted-ui)] resize-none focus:border-[var(--accent-ui)] transition-colors"
           placeholder="Breve sommario del contenuto..."
           rows={2}
           value={summary}
@@ -193,7 +193,7 @@ export function EntryMeta({
         />
       </div>
 
-      <div className="border-t border-[#E5E5E5]" />
+      <div className="border-t border-[var(--border-ui)] mt-1" />
     </div>
   );
 }

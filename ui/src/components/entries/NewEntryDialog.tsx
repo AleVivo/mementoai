@@ -80,21 +80,21 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
   return (
     <Dialog open={isNewEntryOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <button className="flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#1A1A1A] px-2 py-1 rounded hover:bg-[#E5E5E5]">
+        <button className="flex items-center gap-1.5 text-xs text-[var(--text-muted-ui)] hover:text-foreground px-2 py-1 rounded-md hover:bg-[var(--bg-hover)] transition-colors">
           <Plus size={13} />
           Nuova entry
         </button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Nuova entry</DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-2">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5 mt-2">
           {/* Title */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[#6B7280]">Titolo *</label>
+            <label className="text-xs font-medium text-[var(--text-muted-ui)]">Titolo *</label>
             <Input
               autoFocus
               placeholder="es. ADR-001 Scelta database"
@@ -105,7 +105,7 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
 
           {/* Type */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[#6B7280]">Tipo *</label>
+            <label className="text-xs font-medium text-[var(--text-muted-ui)]">Tipo *</label>
             <Select value={entryType} onValueChange={(v) => setEntryType(v as EntryType)}>
               <SelectTrigger>
                 <SelectValue />
@@ -121,7 +121,7 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
 
           {/* Project */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[#6B7280]">Progetto *</label>
+            <label className="text-xs font-medium text-[var(--text-muted-ui)]">Progetto *</label>
             <Input
               placeholder="es. backend"
               value={project}
@@ -131,7 +131,7 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
 
           {/* Author */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[#6B7280]">Autore *</label>
+            <label className="text-xs font-medium text-[var(--text-muted-ui)]">Autore *</label>
             <Input
               placeholder="es. mario.rossi"
               value={author}

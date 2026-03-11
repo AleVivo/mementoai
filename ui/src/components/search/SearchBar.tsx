@@ -25,7 +25,7 @@ export function SearchBar({ value, onChange, onClear, isSearching }: SearchBarPr
 
   return (
     <div className="relative flex items-center w-full">
-      <span className="absolute left-2 flex items-center text-[#6B7280] pointer-events-none">
+      <span className="absolute left-2 flex items-center text-[var(--text-muted-ui)] pointer-events-none">
         {isSearching ? (
           <Loader2 size={13} className="animate-spin" />
         ) : (
@@ -34,17 +34,18 @@ export function SearchBar({ value, onChange, onClear, isSearching }: SearchBarPr
       </span>
       <input
         ref={inputRef}
+        data-search-input="true"
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Cerca (Ctrl+K)..."
         style={{ paddingLeft: "1.75rem", paddingRight: value ? "1.75rem" : "0.5rem" }}
-        className="w-full py-1.5 text-sm bg-transparent border border-[#E5E5E5] rounded-md outline-none focus:border-[#1A1A1A] placeholder:text-[#9CA3AF] text-[#1A1A1A]"
+        className="w-full h-8 text-sm bg-[var(--bg-subtle)] border border-[var(--border-ui)] rounded-lg outline-none focus:border-[var(--accent-ui)] placeholder:text-[var(--text-muted-ui)] text-foreground transition-colors"
       />
       {value && (
         <button
           onClick={onClear}
-          className="absolute right-2 flex items-center text-[#6B7280] hover:text-[#1A1A1A]"
+          className="absolute right-2 flex items-center text-[var(--text-muted-ui)] hover:text-foreground"
         >
           <X size={13} />
         </button>

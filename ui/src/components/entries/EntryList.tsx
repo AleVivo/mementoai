@@ -14,10 +14,10 @@ export function EntryList({ entries, onSelect, isLoading }: EntryListProps) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-1 py-2 px-3">
+      <div className="flex flex-col gap-2">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex flex-col gap-1 py-2">
-            <Skeleton className="h-3 w-3/4" />
+          <div key={i} className="flex flex-col py-5">
+            <Skeleton className="h-3.5 w-3/4" />
             <Skeleton className="h-2.5 w-1/2" />
           </div>
         ))}
@@ -26,11 +26,11 @@ export function EntryList({ entries, onSelect, isLoading }: EntryListProps) {
   }
 
   if (entries.length === 0) {
-    return <p className="text-xs text-[#6B7280] px-3 py-4">Nessuna entry.</p>;
+    return <p className="text-xs text-[var(--text-muted-ui)] px-4 py-4">Nessuna entry.</p>;
   }
 
   return (
-    <div className="flex flex-col py-1">
+    <div className="flex flex-col">
       {entries.map((entry) => (
         <EntryListItem
           key={entry.id}

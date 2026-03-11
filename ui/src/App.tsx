@@ -13,7 +13,7 @@ function App() {
 
   return (
     <TooltipProvider>
-      <div className="flex h-screen overflow-hidden bg-[#FAFAFA]">
+      <div className="flex h-screen overflow-hidden bg-background">
         {isSidebarOpen && <Sidebar />}
         <MainPanel />
         <ChatDrawer />

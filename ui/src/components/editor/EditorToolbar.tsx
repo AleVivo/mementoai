@@ -45,10 +45,10 @@ function ToolBtn({ onClick, active, title, children }: ToolBtnProps) {
       type="button"
       onClick={onClick}
       title={title}
-      className={`p-1 rounded transition-colors ${
+      className={`p-1 rounded-md transition-colors ${
         active
-          ? "bg-[#E5E5E5] text-[#1A1A1A]"
-          : "text-[#6B7280] hover:bg-[#F0F0F0] hover:text-[#1A1A1A]"
+          ? "bg-[var(--bg-hover)] text-foreground"
+          : "text-[var(--text-muted-ui)] hover:bg-[var(--bg-hover)] hover:text-foreground"
       }`}
     >
       {children}
@@ -57,7 +57,7 @@ function ToolBtn({ onClick, active, title, children }: ToolBtnProps) {
 }
 
 function Divider() {
-  return <div className="w-px h-4 bg-[#E5E5E5] mx-0.5 self-center" />;
+  return <div className="w-px h-4 bg-[var(--border-ui)] mx-0.5 self-center" />
 }
 
 interface EditorToolbarProps {
@@ -85,7 +85,7 @@ export function EditorToolbar({ editor, entry }: EditorToolbarProps) {
   }
 
   return (
-    <div className="flex items-center gap-0.5 flex-wrap px-1 py-1 border-b border-[#E5E5E5] mb-4">
+    <div className="flex items-center gap-0.5 flex-wrap px-2 py-1.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-ui)] mb-6">
       <ToolBtn
         onClick={() => editor.chain().focus().toggleBold().run()}
         active={editor.isActive("bold")}
@@ -189,7 +189,7 @@ export function EditorToolbar({ editor, entry }: EditorToolbarProps) {
             type="button"
             title="Elimina entry"
             disabled={isDeleting}
-            className="p-1 rounded text-[#9CA3AF] hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50"
+            className="p-1 rounded-md text-[var(--text-muted-ui)] hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
           >
             <Trash2 size={14} />
           </button>

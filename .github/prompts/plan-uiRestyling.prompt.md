@@ -155,6 +155,7 @@ Micro-animazioni: `transition-colors duration-150` sui hover (già parzialmente 
 2. Visivamente: testo leggibile a 15px base, sidebar spaziosa a 256px, shadows su dialogs e drawer
 3. Dark mode: toggle Sun/Moon nella top bar, persistenza dopo refresh (localStorage)
 4. Nessuna regressione funzionale (autosave, index, delete, search, chat)
+5. Eseguire: [code-review-cleanup](./code-review-cleanup.prompt.md)
 
 ---
 

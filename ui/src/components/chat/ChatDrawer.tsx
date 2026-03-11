@@ -16,13 +16,13 @@ export function ChatDrawer() {
       onOpenChange={(open) => { if (!open) toggleChat(); }}
       direction="right"
     >
-      <DrawerContent className="flex flex-col w-80 h-full rounded-none border-l border-[#E5E5E5] bg-[#FAFAFA]">
+      <DrawerContent className="flex flex-col w-96 h-full rounded-l-2xl border-l border-[var(--border-ui)] bg-background" style={{ boxShadow: "var(--shadow-lg)" }}>
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[#E5E5E5] shrink-0">
-          <span className="text-sm font-medium text-[#1A1A1A]">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-ui)] shrink-0">
+          <span className="text-sm font-semibold text-foreground">
             Chat{activeProject ? ` · ${activeProject}` : ""}
           </span>
-          <button onClick={toggleChat} className="p-1 rounded hover:bg-[#E5E5E5] text-[#6B7280]">
+          <button onClick={toggleChat} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted-ui)] transition-colors">
             <X size={14} />
           </button>
         </div>
