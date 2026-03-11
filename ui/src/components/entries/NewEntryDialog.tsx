@@ -27,7 +27,6 @@ interface NewEntryDialogProps {
 }
 
 export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
-  const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [entryType, setEntryType] = useState<EntryType>("adr");
   const [project, setProject] = useState(defaultProject);
@@ -36,7 +35,7 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
   const [error, setError] = useState<string | null>(null);
 
   const { upsertEntry } = useEntriesStore();
-  const { setActiveEntryId } = useUIStore();
+  const { setActiveEntryId, isNewEntryOpen, setNewEntryOpen } = useUIStore();
 
   function reset() {
     setTitle("");
@@ -47,7 +46,7 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
   }
 
   function handleOpenChange(value: boolean) {
-    setOpen(value);
+    setNewEntryOpen(value);
     if (!value) reset();
   }
 
@@ -69,7 +68,7 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
       });
       upsertEntry(created);
       setActiveEntryId(created.id);
-      setOpen(false);
+      setNewEntryOpen(false);
       reset();
     } catch {
       setError("Errore nella creazione. Verifica che il backend sia attivo.");
@@ -79,7 +78,7 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={isNewEntryOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <button className="flex items-center gap-1.5 text-xs text-[#6B7280] hover:text-[#1A1A1A] px-2 py-1 rounded hover:bg-[#E5E5E5]">
           <Plus size={13} />
@@ -143,7 +142,7 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
           {error && <p className="text-xs text-red-500">{error}</p>}
 
           <div className="flex justify-end gap-2 mt-1">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setNewEntryOpen(false)}>
               Annulla
             </Button>
             <Button type="submit" disabled={isSubmitting}>

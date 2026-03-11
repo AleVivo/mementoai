@@ -8,6 +8,7 @@ interface UIState {
   isChatOpen: boolean;
   isSidebarOpen: boolean;
   activeProject: string | null;
+  isNewEntryOpen: boolean;
 
   setActiveEntryId: (id: string | null) => void;
   setDirty: (dirty: boolean) => void;
@@ -16,6 +17,7 @@ interface UIState {
   toggleChat: () => void;
   toggleSidebar: () => void;
   setActiveProject: (project: string | null) => void;
+  setNewEntryOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -26,6 +28,7 @@ export const useUIStore = create<UIState>((set) => ({
   isChatOpen: false,
   isSidebarOpen: true,
   activeProject: null,
+  isNewEntryOpen: false,
 
   setActiveEntryId: (id) => set({ activeEntryId: id, isDirty: false }),
   setDirty: (dirty) => set({ isDirty: dirty }),
@@ -34,4 +37,5 @@ export const useUIStore = create<UIState>((set) => ({
   toggleChat: () => set((s) => ({ isChatOpen: !s.isChatOpen })),
   toggleSidebar: () => set((s) => ({ isSidebarOpen: !s.isSidebarOpen })),
   setActiveProject: (project) => set({ activeProject: project }),
+  setNewEntryOpen: (open) => set({ isNewEntryOpen: open }),
 }));

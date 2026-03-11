@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Editor } from "@tiptap/react";
 import {
   Bold,
@@ -12,7 +13,24 @@ import {
   Quote,
   Code2,
   Highlighter,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { deleteEntry } from "@/api/entries";
+import { useEntriesStore } from "@/store/entries.store";
+import { useUIStore } from "@/store/ui.store";
+import type { Entry } from "@/types";
 
 interface ToolBtnProps {
   onClick: () => void;
@@ -44,9 +62,28 @@ function Divider() {
 
 interface EditorToolbarProps {
   editor: Editor;
+  entry: Entry;
 }
 
-export function EditorToolbar({ editor }: EditorToolbarProps) {
+export function EditorToolbar({ editor, entry }: EditorToolbarProps) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { removeEntry } = useEntriesStore();
+  const { setActiveEntryId } = useUIStore();
+
+  async function handleDelete() {
+    setIsDeleting(true);
+    try {
+      await deleteEntry(entry.id);
+      removeEntry(entry.id);
+      setActiveEntryId(null);
+      toast.success(`"${entry.title}" eliminata`);
+    } catch {
+      toast.error("Errore durante l'eliminazione");
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <div className="flex items-center gap-0.5 flex-wrap px-1 py-1 border-b border-[#E5E5E5] mb-4">
       <ToolBtn
@@ -142,6 +179,39 @@ export function EditorToolbar({ editor }: EditorToolbarProps) {
       >
         <Highlighter size={14} />
       </ToolBtn>
+
+      <div className="flex-1" />
+      <Divider />
+
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <button
+            type="button"
+            title="Elimina entry"
+            disabled={isDeleting}
+            className="p-1 rounded text-[#9CA3AF] hover:bg-red-50 hover:text-red-500 transition-colors disabled:opacity-50"
+          >
+            <Trash2 size={14} />
+          </button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Eliminare questa entry?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Stai per eliminare <strong>"{entry.title}"</strong>. Questa azione non può essere annullata.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

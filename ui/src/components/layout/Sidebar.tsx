@@ -1,8 +1,7 @@
-import { useEffect } from "react";
 import { PanelLeftClose, MessageSquare } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useEntriesStore } from "@/store/entries.store";
-import { getEntries } from "@/api/entries";
+import { useEntries } from "@/hooks/useEntries";
 import { EntryList } from "@/components/entries/EntryList";
 import { NewEntryDialog } from "@/components/entries/NewEntryDialog";
 import { cn } from "@/lib/utils";
@@ -10,15 +9,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 
 export function Sidebar() {
   const { activeProject, setActiveProject, toggleSidebar, toggleChat, setActiveEntryId } = useUIStore();
-  const { entries, isLoading, setEntries, setLoading } = useEntriesStore();
-
-  useEffect(() => {
-    setLoading(true);
-    getEntries(activeProject ?? undefined)
-      .then(setEntries)
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [activeProject]);
+  const { entries, isLoading } = useEntriesStore();
+  useEntries();
 
   const projects = Array.from(new Set(entries.map((e) => e.project))).sort();
 
@@ -67,14 +59,11 @@ export function Sidebar() {
 
       {/* Entry list */}
       <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
-          <p className="text-xs text-[#6B7280] px-3 py-4">Caricamento...</p>
-        ) : (
-          <EntryList
-            entries={entries.filter((e) => !activeProject || e.project === activeProject)}
-            onSelect={setActiveEntryId}
-          />
-        )}
+        <EntryList
+          entries={entries.filter((e) => !activeProject || e.project === activeProject)}
+          onSelect={setActiveEntryId}
+          isLoading={isLoading}
+        />
       </div>
 
       {/* Footer actions */}

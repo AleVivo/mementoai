@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { useEffect, useState, useRef, KeyboardEvent } from "react";
+import { CheckCircle2, AlertCircle, X } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -16,10 +16,12 @@ interface EntryMetaProps {
   entryType: EntryType;
   author: string;
   tags: string[];
+  summary: string;
   onTitleChange: (v: string) => void;
   onTypeChange: (v: EntryType) => void;
   onAuthorChange: (v: string) => void;
   onTagsChange: (v: string[]) => void;
+  onSummaryChange: (v: string) => void;
 }
 
 export function EntryMeta({
@@ -28,36 +30,64 @@ export function EntryMeta({
   entryType,
   author,
   tags,
+  summary,
   onTitleChange,
   onTypeChange,
   onAuthorChange,
   onTagsChange,
+  onSummaryChange,
 }: EntryMetaProps) {
   const { isSaving, isIndexing } = useUIStore();
   const [showIndexed, setShowIndexed] = useState(false);
-  const [tagInput, setTagInput] = useState(tags.join(", "));
+  const [tagInput, setTagInput] = useState("");
+  const tagInputRef = useRef<HTMLInputElement>(null);
+  // Tracks the previous vector_status to detect transitions (not initial loads)
+  const prevStatusRef = useRef(entry.vector_status);
 
-  // Sync tag input when entry changes
+  // Reset when switching entries: clear tag input, hide green indicator, sync prevStatusRef
   useEffect(() => {
-    setTagInput(tags.join(", "));
+    setTagInput("");
+    setShowIndexed(false);
+    prevStatusRef.current = entry.vector_status;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entry.id]);
 
-  // Show "indexed" indicator briefly after indexing
+  // Show green "Indicizzato" only when status transitions TO indexed (not on initial load)
   useEffect(() => {
-    if (entry.vector_status === "indexed") {
+    if (entry.vector_status === "indexed" && prevStatusRef.current !== "indexed") {
       setShowIndexed(true);
       const t = setTimeout(() => setShowIndexed(false), 3000);
+      prevStatusRef.current = entry.vector_status;
       return () => clearTimeout(t);
     }
+    prevStatusRef.current = entry.vector_status;
   }, [entry.vector_status]);
 
-  function handleTagBlur() {
-    const arr = tagInput
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-    onTagsChange(arr);
+  function addTag(raw: string) {
+    const trimmed = raw.trim().replace(/,+$/, "").trim();
+    if (!trimmed || tags.includes(trimmed)) return;
+    onTagsChange([...tags, trimmed]);
+  }
+
+  function handleTagKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" || e.key === ",") {
+      e.preventDefault();
+      addTag(tagInput);
+      setTagInput("");
+    } else if (e.key === "Backspace" && tagInput === "" && tags.length > 0) {
+      onTagsChange(tags.slice(0, -1));
+    }
+  }
+
+  function handleTagInputBlur() {
+    if (tagInput.trim()) {
+      addTag(tagInput);
+      setTagInput("");
+    }
+  }
+
+  function removeTag(tag: string) {
+    onTagsChange(tags.filter((t) => t !== tag));
   }
 
   const statusEl =
@@ -115,15 +145,51 @@ export function EntryMeta({
         {statusEl && <span className="ml-auto">{statusEl}</span>}
       </div>
 
-      {/* Tags */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-[#6B7280]">Tags:</span>
+      {/* Tags — pill editor */}
+      <div
+        className="flex flex-wrap items-center gap-1 min-h-[28px] px-2 py-1 rounded border border-[#E5E5E5] bg-[#FAFAFA] cursor-text"
+        onClick={() => tagInputRef.current?.focus()}
+      >
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#E5E5E5] text-xs text-[#1A1A1A]"
+          >
+            {tag}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); removeTag(tag); }}
+              className="text-[#6B7280] hover:text-[#1A1A1A] leading-none"
+            >
+              <X size={10} />
+            </button>
+          </span>
+        ))}
         <input
-          className="text-xs text-[#6B7280] bg-transparent border-none outline-none flex-1 placeholder:text-[#9CA3AF]"
-          placeholder="tag1, tag2, tag3"
+          ref={tagInputRef}
+          className="flex-1 min-w-[80px] bg-transparent border-none outline-none text-xs text-[#1A1A1A] placeholder:text-[#9CA3AF]"
+          placeholder={tags.length === 0 ? "Aggiungi tag (Invio o ,)" : ""}
           value={tagInput}
           onChange={(e) => setTagInput(e.target.value)}
-          onBlur={handleTagBlur}
+          onKeyDown={handleTagKeyDown}
+          onBlur={handleTagInputBlur}
+        />
+      </div>
+
+      {/* Summary */}
+      <div className="flex flex-col gap-1">
+        <label className="text-[11px] text-[#9CA3AF] uppercase tracking-wide">
+          Sommario{" "}
+          <span className="normal-case tracking-normal text-[#9CA3AF]">
+            (auto-generato all'indicizzazione se vuoto)
+          </span>
+        </label>
+        <textarea
+          className="text-sm text-[#6B7280] bg-transparent border border-[#E5E5E5] rounded px-2 py-1.5 outline-none placeholder:text-[#9CA3AF] resize-none focus:border-[#6B7280]"
+          placeholder="Breve sommario del contenuto..."
+          rows={2}
+          value={summary}
+          onChange={(e) => onSummaryChange(e.target.value)}
         />
       </div>
 
@@ -131,3 +197,4 @@ export function EntryMeta({
     </div>
   );
 }
+

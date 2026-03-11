@@ -25,6 +25,7 @@ interface LocalMeta {
   entry_type: EntryType;
   author: string;
   tags: string[];
+  summary: string;
 }
 
 interface EntryEditorProps {
@@ -40,6 +41,7 @@ export function EntryEditor({ entry }: EntryEditorProps) {
     entry_type: entry.entry_type,
     author: entry.author,
     tags: entry.tags,
+    summary: entry.summary,
   });
 
   // Keep a ref to always have the latest meta in async callbacks
@@ -78,6 +80,7 @@ export function EntryEditor({ entry }: EntryEditorProps) {
       entry_type: entry.entry_type,
       author: entry.author,
       tags: entry.tags,
+      summary: entry.summary,
     });
     if (editor) {
       editor.commands.setContent(entry.content ?? "", { emitUpdate: false });
@@ -91,6 +94,20 @@ export function EntryEditor({ entry }: EntryEditorProps) {
       if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     };
   }, []);
+
+  // Ctrl+S — save immediato
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
+        save();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
 
   function scheduleAutosave() {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
@@ -141,12 +158,14 @@ export function EntryEditor({ entry }: EntryEditorProps) {
         entryType={meta.entry_type}
         author={meta.author}
         tags={meta.tags}
+        summary={meta.summary}
         onTitleChange={(v) => handleMetaChange({ title: v })}
         onTypeChange={(v) => handleMetaChange({ entry_type: v })}
         onAuthorChange={(v) => handleMetaChange({ author: v })}
         onTagsChange={(v) => handleMetaChange({ tags: v })}
+        onSummaryChange={(v) => handleMetaChange({ summary: v })}
       />
-      {editor && <EditorToolbar editor={editor} />}
+      {editor && <EditorToolbar editor={editor} entry={entry} />}
       <EditorContent
         editor={editor}
         className="flex-1 overflow-y-auto [&_.tiptap]:outline-none [&_.tiptap]:min-h-[200px] [&_.tiptap_h1]:text-xl [&_.tiptap_h1]:font-semibold [&_.tiptap_h1]:mb-2 [&_.tiptap_h2]:text-lg [&_.tiptap_h2]:font-medium [&_.tiptap_h2]:mb-2 [&_.tiptap_p]:mb-2 [&_.tiptap_ul]:list-disc [&_.tiptap_ul]:pl-5 [&_.tiptap_ul]:mb-2 [&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:pl-5 [&_.tiptap_ol]:mb-2 [&_.tiptap_blockquote]:border-l-2 [&_.tiptap_blockquote]:border-[#E5E5E5] [&_.tiptap_blockquote]:pl-3 [&_.tiptap_blockquote]:text-[#6B7280] [&_.tiptap_code]:bg-[#F0F0F0] [&_.tiptap_code]:px-1 [&_.tiptap_code]:rounded [&_.tiptap_code]:text-xs [&_.tiptap_pre]:bg-[#F0F0F0] [&_.tiptap_pre]:p-3 [&_.tiptap_pre]:rounded [&_.tiptap_pre]:text-xs [&_.tiptap_pre]:mb-2 [&_.tiptap_mark]:bg-yellow-100"

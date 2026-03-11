@@ -4,9 +4,12 @@ import { MainPanel } from "./components/layout/MainPanel";
 import { ChatDrawer } from "./components/chat/ChatDrawer";
 import { useUIStore } from "./store/ui.store";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 
 function App() {
   const isSidebarOpen = useUIStore((s) => s.isSidebarOpen);
+  useKeyboardShortcuts();
 
   return (
     <TooltipProvider>
@@ -15,6 +18,7 @@ function App() {
         <MainPanel />
         <ChatDrawer />
       </div>
+      <Toaster position="bottom-right" richColors />
     </TooltipProvider>
   );
 }
