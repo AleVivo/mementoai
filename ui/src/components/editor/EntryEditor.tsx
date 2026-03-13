@@ -67,9 +67,6 @@ export function EntryEditor({ entry }: EntryEditorProps) {
       setDirty(true);
       scheduleAutosave();
     },
-    onBlur() {
-      triggerIndex();
-    },
   });
 
   // When the active entry changes, reset local state and editor content
@@ -165,7 +162,7 @@ export function EntryEditor({ entry }: EntryEditorProps) {
         onTagsChange={(v) => handleMetaChange({ tags: v })}
         onSummaryChange={(v) => handleMetaChange({ summary: v })}
       />
-      {editor && <EditorToolbar editor={editor} entry={entry} />}
+      {editor && <EditorToolbar editor={editor} entry={entry} onIndex={triggerIndex} />}
       <EditorContent
         editor={editor}
         className="flex-1 overflow-y-auto [&_.tiptap]:outline-none [&_.tiptap]:min-h-[200px] [&_.tiptap_h1]:text-xl [&_.tiptap_h1]:font-semibold [&_.tiptap_h1]:mb-2 [&_.tiptap_h2]:text-lg [&_.tiptap_h2]:font-medium [&_.tiptap_h2]:mb-2 [&_.tiptap_p]:mb-2 [&_.tiptap_ul]:list-disc [&_.tiptap_ul]:pl-5 [&_.tiptap_ul]:mb-2 [&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:pl-5 [&_.tiptap_ol]:mb-2 [&_.tiptap_blockquote]:border-l-2 [&_.tiptap_blockquote]:border-[#E5E5E5] [&_.tiptap_blockquote]:pl-3 [&_.tiptap_blockquote]:text-[#6B7280] [&_.tiptap_code]:bg-[#F0F0F0] [&_.tiptap_code]:px-1 [&_.tiptap_code]:rounded [&_.tiptap_code]:text-xs [&_.tiptap_pre]:bg-[#F0F0F0] [&_.tiptap_pre]:p-3 [&_.tiptap_pre]:rounded [&_.tiptap_pre]:text-xs [&_.tiptap_pre]:mb-2 [&_.tiptap_mark]:bg-yellow-100"

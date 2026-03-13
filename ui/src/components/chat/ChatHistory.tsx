@@ -17,7 +17,7 @@ export function ChatHistory({ messages, isWaiting, activeProject }: Props) {
   }, [messages.length, isWaiting]);
 
   return (
-    <ScrollArea className="flex-1 px-4 py-3">
+    <ScrollArea className="h-full px-4 py-3">
       {messages.length === 0 ? (
         <p className="text-xs text-[var(--text-muted-ui)] text-center mt-8">
           Fai una domanda sulla knowledge base

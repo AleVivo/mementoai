@@ -1,8 +1,35 @@
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routers import entries, search, chat
+from app.services import ollama
+from app.config import settings
 
-app = FastAPI(title = "MementoAI")
+logging.basicConfig(
+    level=getattr(logging, settings.log_level.upper(), logging.INFO),
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("MementoAI starting up...")
+    try:
+        await ollama.preload_models()
+    except Exception as e:
+        logger.warning(f"Could not preload Ollama models (is Ollama running?): {e}")
+    yield
+    logger.info("MementoAI shutting down...")
+    try:
+        await ollama.unload_models()
+    except Exception:
+        pass
+
+
+app = FastAPI(title="MementoAI", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

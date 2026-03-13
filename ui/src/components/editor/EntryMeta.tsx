@@ -179,10 +179,7 @@ export function EntryMeta({
       {/* Summary */}
       <div className="flex flex-col gap-1">
         <label className="text-[11px] text-[var(--text-muted-ui)] uppercase tracking-wide">
-          Sommario{" "}
-          <span className="normal-case tracking-normal">
-            (auto-generato all'indicizzazione se vuoto)
-          </span>
+          Sommario
         </label>
         <textarea
           className="text-sm text-[var(--text-muted-ui)] bg-[var(--bg-subtle)] border border-[var(--border-ui)] rounded-lg px-3 py-2 outline-none placeholder:text-[var(--text-muted-ui)] resize-none focus:border-[var(--accent-ui)] transition-colors"

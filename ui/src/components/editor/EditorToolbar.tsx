@@ -14,6 +14,8 @@ import {
   Code2,
   Highlighter,
   Trash2,
+  BrainCircuit,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -63,12 +65,13 @@ function Divider() {
 interface EditorToolbarProps {
   editor: Editor;
   entry: Entry;
+  onIndex: () => void;
 }
 
-export function EditorToolbar({ editor, entry }: EditorToolbarProps) {
+export function EditorToolbar({ editor, entry, onIndex }: EditorToolbarProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { removeEntry } = useEntriesStore();
-  const { setActiveEntryId } = useUIStore();
+  const { setActiveEntryId, isIndexing } = useUIStore();
 
   async function handleDelete() {
     setIsDeleting(true);
@@ -181,6 +184,23 @@ export function EditorToolbar({ editor, entry }: EditorToolbarProps) {
       </ToolBtn>
 
       <div className="flex-1" />
+      <Divider />
+
+      <button
+        type="button"
+        title="Indicizza (embedding)"
+        disabled={isIndexing}
+        onClick={onIndex}
+        className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-[var(--text-muted-ui)] hover:bg-[var(--bg-hover)] hover:text-foreground disabled:opacity-50 transition-colors"
+      >
+        {isIndexing ? (
+          <Loader2 size={14} className="animate-spin" />
+        ) : (
+          <BrainCircuit size={14} />
+        )}
+        <span>{isIndexing ? "Indicizzazione..." : "Indicizza"}</span>
+      </button>
+
       <Divider />
 
       <AlertDialog>

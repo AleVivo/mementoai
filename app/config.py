@@ -6,6 +6,7 @@ class settings(BaseSettings):
     mongodb_user: str
     mongodb_password: str
     ollama_url: str
+    log_level: str = "INFO"
 
     model_config = {
         "env_file": ".env",

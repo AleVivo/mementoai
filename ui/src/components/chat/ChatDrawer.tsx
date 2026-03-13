@@ -27,11 +27,13 @@ export function ChatDrawer() {
           </button>
         </div>
 
-        <ChatHistory
-          messages={projectMessages}
-          isWaiting={isWaiting}
-          activeProject={activeProject}
-        />
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <ChatHistory
+            messages={projectMessages}
+            isWaiting={isWaiting}
+            activeProject={activeProject}
+          />
+        </div>
         <Separator />
         <ChatInput onSend={send} disabled={isWaiting} />
       </DrawerContent>

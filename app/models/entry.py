@@ -54,7 +54,6 @@ class EntryDocument(BaseModel):
     project: str
     author: str
     tags: list[str] = []
-    embedding: list[float] = []
     created_at: datetime
     week: str
     vector_status: VectorStatus = VectorStatus.pending

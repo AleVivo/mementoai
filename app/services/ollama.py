@@ -1,27 +1,79 @@
+import logging
 import httpx
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
+GENERATE_MODEL = "qwen2.5:7b"
+EMBED_MODEL = "nomic-embed-text"
+
+
+async def preload_models() -> None:
+    """Carica entrambi i modelli in memoria Ollama al bootstrap dell'app.
+    keep_alive=-1 li mantiene caricati indefinitamente."""
+    logger.info("[ollama] Preloading models...")
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        logger.info(f"[ollama] Loading {GENERATE_MODEL}...")
+        await client.post(
+            f"{settings.ollama_url}/api/generate",
+            json={"model": GENERATE_MODEL, "keep_alive": -1},
+        )
+        logger.info(f"[ollama] {GENERATE_MODEL} loaded.")
+
+        logger.info(f"[ollama] Loading {EMBED_MODEL}...")
+        await client.post(
+            f"{settings.ollama_url}/api/embeddings",
+            json={"model": EMBED_MODEL, "prompt": "", "keep_alive": -1},
+        )
+        logger.info(f"[ollama] {EMBED_MODEL} loaded.")
+    logger.info("[ollama] All models ready.")
+
+
+async def unload_models() -> None:
+    """Scarica i modelli dalla memoria Ollama allo shutdown dell'app."""
+    logger.info("[ollama] Unloading models...")
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        await client.post(
+            f"{settings.ollama_url}/api/generate",
+            json={"model": GENERATE_MODEL, "keep_alive": 0},
+        )
+        await client.post(
+            f"{settings.ollama_url}/api/embeddings",
+            json={"model": EMBED_MODEL, "prompt": "", "keep_alive": 0},
+        )
+    logger.info("[ollama] Models unloaded.")
+
+
 async def generate_by_prompt(prompt: str) -> str:
-    async with httpx.AsyncClient(timeout=240.0) as client:
+    logger.debug(f"[ollama] generate_by_prompt — prompt length: {len(prompt)} chars")
+    async with httpx.AsyncClient(timeout=None) as client:
         response = await client.post(
             f"{settings.ollama_url}/api/generate",
             json={
-                "model": "mistral",
+                "model": GENERATE_MODEL,
                 "prompt": prompt,
-                "stream": False
-            }
+                "stream": False,
+                "keep_alive": -1,
+            },
         )
         response.raise_for_status()
-        return response.json()["response"]
+        result = response.json()["response"]
+        logger.debug(f"[ollama] generate_by_prompt — response length: {len(result)} chars")
+        return result
+
 
 async def generate_embedding(text: str) -> list[float]:
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    logger.debug(f"[ollama] generate_embedding — text length: {len(text)} chars")
+    async with httpx.AsyncClient(timeout=None) as client:
         response = await client.post(
             f"{settings.ollama_url}/api/embeddings",
             json={
-                "model": "nomic-embed-text",
-                "prompt": text
-            }
+                "model": EMBED_MODEL,
+                "prompt": text,
+                "keep_alive": -1,
+            },
         )
         response.raise_for_status()
-        return response.json()["embedding"]
+        embedding = response.json()["embedding"]
+        logger.debug(f"[ollama] generate_embedding — vector dims: {len(embedding)}")
+        return embedding
