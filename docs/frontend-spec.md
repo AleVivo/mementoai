@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-13
+last_updated: 2026-03-14
 ---
 
 # MementoAI — Frontend Specification
@@ -32,7 +32,7 @@ ui/                          ← Tauri frontend root
 │   │   ├── client.ts        ← Base fetch wrapper (baseURL = localhost:8000)
 │   │   ├── entries.ts       ← /entries API calls
 │   │   ├── search.ts        ← /search API calls
-│   │   └── chat.ts          ← /chat API calls
+│   │   └── chat.ts          ← /chat e /agent API calls
 │   ├── components/
 │   │   ├── layout/
 │   │   │   ├── Sidebar.tsx         ← Left nav: projects + entries list
@@ -50,19 +50,19 @@ ui/                          ← Tauri frontend root
 │   │   │   ├── SearchBar.tsx       ← Semantic search input (debounced 300ms, Ctrl+K)
 │   │   │   └── SearchResults.tsx   ← Results list with score, type, summary
 │   │   ├── chat/
-│   │   │   ├── ChatDrawer.tsx      ← vaul Drawer from right, uses isChatOpen from store
+│   │   │   ├── ChatDrawer.tsx      ← vaul Drawer from right; header con select RAG/Agent; titolo mostra progetto attivo o "Tutto"
 │   │   │   ├── ChatInput.tsx       ← Textarea, Enter sends, Shift+Enter newline
 │   │   │   ├── ChatMessage.tsx     ← User bubble (right) + AI bubble (left, markdown rendered)
 │   │   │   └── ChatHistory.tsx     ← ScrollArea with auto-scroll to bottom
 │   │   └── ui/                     ← shadcn/ui components (auto-generated)
 │   ├── store/
 │   │   ├── entries.store.ts        ← Zustand: entries state + actions
-│   │   ├── ui.store.ts             ← Zustand: sidebar open, active entry, chat open, dirty/saving/indexing state
-│   │   └── chat.store.ts           ← Zustand: messages per project, isWaiting
+│   │   ├── ui.store.ts             ← Zustand: sidebar open, active entry, chat open, dirty/saving/indexing state, chatMode (rag|agent)
+│   │   └── chat.store.ts           ← Zustand: messages per project (chiave "__all__" per scope globale), isWaiting
 │   ├── hooks/
 │   │   ├── useEntries.ts           ← Fetch entries on project change, popola store
 │   │   ├── useSearch.ts            ← Debounced semantic search (300ms)
-│   │   └── useChat.ts              ← send(question) → POST /chat → addMessage to store
+│   │   └── useChat.ts              ← send(question) → POST /chat o POST /agent in base a chatMode; project omesso se nessun progetto attivo
 │   ├── types/
 │   │   └── index.ts                ← TypeScript types mirroring backend models
 │   └── lib/
@@ -148,7 +148,7 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   question: string;
-  project: string;       // obbligatorio — la chat è sempre scoped a un progetto
+  project?: string;      // opzionale — omesso = ricerca su tutta la KB
 }
 
 export interface ChatSource {
@@ -162,6 +162,24 @@ export interface ChatSource {
 export interface ChatResponse {
   answer: string;
   sources: ChatSource[];
+}
+
+export interface AgentRequest {
+  question: string;
+  project?: string;      // opzionale — omesso = scope globale
+  max_steps?: number;    // default 5, range 1-10
+}
+
+export interface AgentStep {
+  tool: string;
+  args: Record<string, unknown>;
+  result: unknown;
+}
+
+export interface AgentResponse {
+  answer: string;
+  steps: AgentStep[];
+  model: string;
 }
 ```
 

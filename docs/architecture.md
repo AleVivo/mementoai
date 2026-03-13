@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-13
+last_updated: 2026-03-14
 ---
 
 # MementoAI — Architecture
@@ -41,6 +41,7 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 │  DEL  /entries/:id      ← delete entry          │
 │  POST /search           ← semantic vector search│
 │  POST /chat             ← RAG chat question     │
+│  POST /agent            ← ReAct agent question  │
 └──────────────────┬──────────────────────────────┘
                    │
         ┌──────────┴──────────┐
@@ -78,6 +79,8 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 - `entry_service` — CRUD operations on entries
 - `search_service` — semantic vector search via chunk embeddings
 - `chat_service` — orchestrates search + RAG
+- `agent` — loop ReAct: il modello ragiona iterativamente, sceglie un tool dal registry, esegue, osserva il risultato e itera fino alla risposta finale (max `max_steps` iterazioni)
+- `agent_registry` — catalogo dei tool disponibili all'agente: ricerca semantica, filtri per progetto/tipo, conteggi
 - `classifier` — ⚠️ **DEPRECATED** — `enrich_entry` (summary/tag LLM) rimosso dalla pipeline di indicizzazione, codice preservato
 - `chunker` — parsing HTML TipTap → chunk per heading, max 300 token (cl100k_base / tiktoken)
 - `embedding` — genera embedding vettoriale via Ollama (`nomic-embed-text`, 768 dim)
@@ -143,8 +146,10 @@ User types in search box
 
 ### RAG Chat
 ```
-User types question in chat panel (requires active project)
-  → POST /chat { question, project }
+User types question in chat panel (modalità RAG)
+  → POST /chat { question, project? }
+     - project omesso = ricerca su tutta la knowledge base
+     - project valorizzato = scopo limitato al progetto
   → Backend: query embedded (nomic-embed-text)
            → vector search sui chunk (collection `chunks`, indice `chunks_vector_index`)
            → top-k chunk recuperati
@@ -154,6 +159,23 @@ User types question in chat panel (requires active project)
   → Response: { answer: string, sources: [{ ref, entry_id, title, type, score, section }] }
   → Answer rendered as markdown in chat bubble
   → Sources shown as references
+```
+
+### Agent Chat
+```
+User types question in chat panel (modalità Agent)
+  → POST /agent { question, project?, max_steps }
+     - project omesso = tool operano su tutta la knowledge base
+  → Backend: loop ReAct — max max_steps iterazioni
+       1. LLM ragiona sull'input (Thought)
+       2. Sceglie un tool dal registry (Action)
+             tool disponibili: search_semantic, filter_by_project,
+                               filter_by_type, count_entries, get_entry
+       3. Esegue il tool e osserva il risultato (Observation)
+       4. Ripete finché ha abbastanza informazioni o raggiunge max_steps
+       5. Genera la risposta finale
+  → Response: { answer: string, steps: [{ tool, args, result }], model }
+  → Answer rendered as markdown in chat bubble
 ```
 
 ## Deployment

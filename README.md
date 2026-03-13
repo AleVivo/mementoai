@@ -123,13 +123,15 @@ MementoAI/
 │   ├── main.py           # FastAPI entrypoint + lifespan (preload/unload modelli Ollama)
 │   ├── config.py         # Settings con pydantic-settings (.env)
 │   ├── models/           # Modelli Pydantic (Entry, Chunk, VectorStatus, SearchResult...)
-│   ├── routers/          # Endpoint API (entries, search, chat)
+│   ├── routers/          # Endpoint API (entries, search, chat, agent)
 │   ├── services/
 │   │   ├── ollama.py     # Client Ollama — qwen2.5:7b (generate) + nomic-embed-text (embed)
 │   │   ├── chunker.py    # HTML chunking: segmentazione per heading, max 300 token/chunk
 │   │   ├── embedding.py  # Wrapper generate_embedding → ollama
 │   │   ├── classifier.py # DEPRECATED — enrich_entry (summary/tag LLM) rimosso dalla pipeline
 │   │   ├── rag.py        # Costruzione context + prompt + chiamata generate
+│   │   ├── agent.py      # Loop ReAct: ragiona → sceglie tool → esegue → itera fino alla risposta
+│   │   ├── agent_registry.py # Catalogo tool disponibili all'agente (search, filtri, conteggi)
 │   │   ├── chat_service.py
 │   │   ├── search_service.py
 │   │   └── entry_service.py
@@ -161,7 +163,8 @@ MementoAI/
 | `POST` | `/entries/{id}/index` | Indicizza manualmente: chunking HTML + embedding vettoriale (`nomic-embed-text`) |
 | `DELETE` | `/entries/{id}` | Elimina entry e relativi chunk |
 | `POST` | `/search` | Ricerca semantica vettoriale sui chunk con score di cosine similarity |
-| `POST` | `/chat` | Chat RAG — risponde citando le fonti per titolo (`[Titolo nota]`) |
+| `POST` | `/chat` | Chat RAG — risponde citando le fonti per titolo (`[Titolo nota]`); `project` opzionale (omesso = tutta la KB) |
+| `POST` | `/agent` | Chat agente ReAct — usa tool (ricerca, filtri, conteggi) per rispondere in più step; `project` opzionale |
 
 ---
 
@@ -212,7 +215,7 @@ db.chunks.createSearchIndex(
 )
 ```
 
-Verifica che lo status sia `READY` prima di usare `/search` e `/chat`:
+Verifica che lo status sia `READY` prima di usare `/search`, `/chat` e `/agent`:
 
 ```javascript
 db.chunks.getSearchIndexes()
