@@ -1,3 +1,8 @@
+---
+generated_by: GitHub Copilot (Claude Sonnet 4.6)
+last_updated: 2026-03-13
+---
+
 # MementoAI — Architecture
 
 ## Overview
@@ -71,12 +76,21 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 
 ### Services
 - `entry_service` — CRUD operations on entries
-- `search_service` — semantic vector search via embeddings
+- `search_service` — semantic vector search via chunk embeddings
 - `chat_service` — orchestrates search + RAG
-- `classifier` — auto-tagging / classification
-- `embedding` — generates vector embeddings via Ollama
-- `rag` — builds prompt context and calls Ollama for chat response
-- `ollama` — HTTP client wrapper for Ollama API
+- `classifier` — ⚠️ **DEPRECATED** — `enrich_entry` (summary/tag LLM) rimosso dalla pipeline di indicizzazione, codice preservato
+- `chunker` — parsing HTML TipTap → chunk per heading, max 300 token (cl100k_base / tiktoken)
+- `embedding` — genera embedding vettoriale via Ollama (`nomic-embed-text`, 768 dim)
+- `rag` — costruisce il prompt context e chiama Ollama per la risposta chat
+- `ollama` — HTTP client per Ollama; gestisce preload/unload modelli al lifecycle dell'app
+
+### Modelli Ollama
+| Modello | Uso |
+|---|---|
+| `qwen2.5:7b` | Generazione risposte RAG chat |
+| `nomic-embed-text` | Embedding vettoriale dei chunk (768 dim) |
+
+Entrambi vengono pre-caricati all'avvio dell'app (`keep_alive: -1`) e scaricati allo shutdown.
 
 ## Frontend
 
@@ -104,13 +118,18 @@ PUT /entries/:id { content, title, ... }
 
 ### Index Entry
 ```
-POST /entries/:id/index  (trigger: onBlur editor o manuale)
+POST /entries/:id/index  (trigger: manuale tramite pulsante "Indicizza" nella toolbar)
   → Backend: legge content corrente
-  → classifier → summary + tags  (LLM call)
-  → embedding  → vettore         (Ollama call)
-  → MongoDB: aggiorna embedding, summary, tags, vector_status = "indexed"
+  → chunker   → divide HTML in chunk per heading (max 300 token)
+  → embedding → vettore per ogni chunk (nomic-embed-text)
+  → MongoDB:  - cancella chunk precedenti
+              - inserisce nuovi chunk con embedding nella collection `chunks`
+              - imposta vector_status = "indexed"
   → Response: EntryResponse con vector_status aggiornato
-  → UI: indicatore "✓ Indexed"
+  → UI: indicatore "✓ Indexed" (scompare dopo 3s)
+
+Nota: summary e tag NON vengono generati automaticamente.
+Sono gestiti manualmente dall'utente nell'editor.
 ```
 
 ### Semantic Search
@@ -126,11 +145,15 @@ User types in search box
 ```
 User types question in chat panel (requires active project)
   → POST /chat { question, project }
-  → Backend: semantic search → retrieve top-k entries scoped to project
-  → Backend: build prompt with context → Ollama completion
-  → Response: { answer: string, sources: [{ ref, id, title, type, score }] }
+  → Backend: query embedded (nomic-embed-text)
+           → vector search sui chunk (collection `chunks`, indice `chunks_vector_index`)
+           → top-k chunk recuperati
+           → context costruito come "[Titolo entry] — Heading\n{testo chunk}"
+           → prompt con istruzione: citare fonti come [Titolo nota]
+           → Ollama completion (qwen2.5:7b)
+  → Response: { answer: string, sources: [{ ref, entry_id, title, type, score, section }] }
   → Answer rendered as markdown in chat bubble
-  → Sources shown as clickable references
+  → Sources shown as references
 ```
 
 ## Deployment

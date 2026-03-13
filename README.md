@@ -25,9 +25,16 @@ Knowledge base conversazionale per team di sviluppo piccoli. Permette di cattura
 ### Modelli Ollama richiesti
 
 ```bash
-ollama pull mistral
+ollama pull qwen2.5:7b
 ollama pull nomic-embed-text
 ```
+
+| Modello | Uso |
+|---|---|
+| `qwen2.5:7b` | Generazione risposte RAG chat |
+| `nomic-embed-text` | Embedding vettoriale dei chunk (768 dimensioni) |
+
+> All'avvio del backend entrambi i modelli vengono pre-caricati in memoria (`keep_alive: -1`) e scaricati solo allo spegnimento. Questo elimina il cold-start sulla prima richiesta.
 
 ---
 
@@ -47,6 +54,7 @@ MONGODB_USER=<utente>
 MONGODB_PASSWORD=<password>
 MONGODB_DB=memento
 OLLAMA_URL=http://localhost:11434
+LOG_LEVEL=INFO   # DEBUG per log dettagliati con timing, INFO per flusso normale
 ```
 
 > **Il file `.env` non deve mai essere committato su git.** Contiene credenziali sensibili ed è già incluso nel `.gitignore`.
@@ -112,12 +120,22 @@ Produce un installer `.exe` standalone in `ui/src-tauri/target/release/bundle/`.
 ```
 MementoAI/
 ├── app/
-│   ├── main.py           # FastAPI entrypoint + lifespan
-│   ├── config.py         # Settings con pydantic-settings
-│   ├── models/           # Modelli Pydantic (Entry, VectorStatus, SearchResult...)
+│   ├── main.py           # FastAPI entrypoint + lifespan (preload/unload modelli Ollama)
+│   ├── config.py         # Settings con pydantic-settings (.env)
+│   ├── models/           # Modelli Pydantic (Entry, Chunk, VectorStatus, SearchResult...)
 │   ├── routers/          # Endpoint API (entries, search, chat)
-│   ├── services/         # Logica di business (ollama, classifier, embedding, rag)
-│   └── db/               # Connessione e query MongoDB
+│   ├── services/
+│   │   ├── ollama.py     # Client Ollama — qwen2.5:7b (generate) + nomic-embed-text (embed)
+│   │   ├── chunker.py    # HTML chunking: segmentazione per heading, max 300 token/chunk
+│   │   ├── embedding.py  # Wrapper generate_embedding → ollama
+│   │   ├── classifier.py # DEPRECATED — enrich_entry (summary/tag LLM) rimosso dalla pipeline
+│   │   ├── rag.py        # Costruzione context + prompt + chiamata generate
+│   │   ├── chat_service.py
+│   │   ├── search_service.py
+│   │   └── entry_service.py
+│   └── db/
+│       ├── mongo.py       # Collection entries
+│       └── chunks_mongo.py # Collection chunks + vector search
 ├── ui/                   # Desktop app Tauri v2 + React + TipTap
 │   ├── src/              # Codice React (types, api, store, components)
 │   ├── src-tauri/        # Layer Rust + configurazione Tauri
@@ -136,26 +154,46 @@ MementoAI/
 
 | Metodo | Endpoint | Descrizione |
 |---|---|---|
-| `POST` | `/entries` | Crea una nuova entry (no LLM — solo persistenza) |
+| `POST` | `/entries` | Crea una nuova entry (no LLM — solo persistenza, `vector_status: pending`) |
 | `GET` | `/entries` | Lista entries con filtri (`project`, `type`, `week`, `limit`, `skip`) |
 | `GET` | `/entries/{id}` | Singola entry per ID |
 | `PUT` | `/entries/{id}` | Aggiorna entry (no LLM — imposta `vector_status: outdated`) |
-| `POST` | `/entries/{id}/index` | Avvia pipeline LLM: genera summary, tags e embedding vettoriale |
-| `DELETE` | `/entries/{id}` | Elimina entry |
-| `POST` | `/search` | Ricerca semantica vettoriale con score di cosine similarity |
-| `POST` | `/chat` | Chat RAG — risponde in linguaggio naturale citando le fonti |
+| `POST` | `/entries/{id}/index` | Indicizza manualmente: chunking HTML + embedding vettoriale (`nomic-embed-text`) |
+| `DELETE` | `/entries/{id}` | Elimina entry e relativi chunk |
+| `POST` | `/search` | Ricerca semantica vettoriale sui chunk con score di cosine similarity |
+| `POST` | `/chat` | Chat RAG — risponde citando le fonti per titolo (`[Titolo nota]`) |
+
+---
+
+## Pipeline di indicizzazione
+
+L'indicizzazione è **manuale** — si avvia cliccando il pulsante "Indicizza" nella toolbar dell'editor. Non viene mai avviata automaticamente al salvataggio.
+
+```
+POST /entries/{id}/index
+  1. Imposta vector_status = indexed
+  2. Chunking HTML (BeautifulSoup)
+       - divide per heading h1/h2/h3 — ogni sezione diventa un chunk
+       - max 300 token per chunk (tokenizer cl100k_base via tiktoken)
+       - soglia minima 30 token — chunk più piccoli vengono fusi
+       - liste e blocchi codice trattati come unità atomiche
+  3. Embedding di ogni chunk → nomic-embed-text (768 dim)
+  4. Salvataggio chunk nella collection MongoDB `chunks`
+```
+
+Summary e tag dell'entry sono **sempre manuali** — inseriti dall'utente nell'editor.
 
 ---
 
 ## MongoDB — Vector Search Index
 
-Il `$vectorSearch` richiede un indice dedicato sulla collection `entries`. Crearlo una volta dalla shell di MongoDB:
+La ricerca vettoriale opera sulla collection **`chunks`** (non `entries`). Creare l'indice una volta dalla shell di MongoDB:
 
 ```javascript
 use memento
 
-db.entries.createSearchIndex(
-  "vector_index",
+db.chunks.createSearchIndex(
+  "chunks_vector_index",
   "vectorSearch",
   {
     fields: [
@@ -177,5 +215,5 @@ db.entries.createSearchIndex(
 Verifica che lo status sia `READY` prima di usare `/search` e `/chat`:
 
 ```javascript
-db.entries.getSearchIndexes()
+db.chunks.getSearchIndexes()
 ```

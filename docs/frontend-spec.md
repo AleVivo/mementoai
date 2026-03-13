@@ -1,3 +1,8 @@
+---
+generated_by: GitHub Copilot (Claude Sonnet 4.6)
+last_updated: 2026-03-13
+---
+
 # MementoAI — Frontend Specification
 
 ## Technology Stack
@@ -33,9 +38,9 @@ ui/                          ← Tauri frontend root
 │   │   │   ├── Sidebar.tsx         ← Left nav: projects + entries list
 │   │   │   └── MainPanel.tsx       ← Right area: editor or search results
 │   │   ├── editor/
-│   │   │   ├── EntryEditor.tsx     ← TipTap-based block editor (autosave 1.5s, index on blur)
-│   │   │   ├── EditorToolbar.tsx   ← Formatting toolbar + save/index status indicators
-│   │   │   └── EntryMeta.tsx       ← Title, type, author, tags, vector status badge
+│   │   │   ├── EntryEditor.tsx     ← TipTap editor (autosave 1.5s; index SOLO manuale)
+│   │   │   ├── EditorToolbar.tsx   ← Toolbar formattazione + pulsante "Indicizza" manuale
+│   │   │   └── EntryMeta.tsx       ← Title, type, author, tags, summary (manuale), vector status badge
 │   │   ├── entries/
 │   │   │   ├── EntryList.tsx       ← Sidebar entries list
 │   │   │   ├── EntryListItem.tsx   ← Single entry row in sidebar
@@ -251,17 +256,17 @@ Extensions to enable for Notion-like experience:
 - Se si naviga su un'altra entry con `isDirty = true` → dialog "Unsaved changes — Save or Discard?"
 
 ### Index (vettorializzazione)
-- **Trigger automatico**: `onBlur` dell'editor → `POST /entries/:id/index`
-  - Il backend esegue: classifier → summary + tags, embedding → vettore, `vector_status = "indexed"`
-- **Trigger manuale**: pulsante `[⟳ Index]` nella toolbar dell'editor
-- Indicatori visivi indipendenti dal save:
+- **Trigger esclusivamente manuale**: pulsante `[Indicizza]` nella toolbar dell'editor → `POST /entries/:id/index`
+  - Il backend esegue: chunking HTML → embedding chunk → salvataggio in collection `chunks`, `vector_status = "indexed"`
+  - Summary e tag **non** vengono generati automaticamente — sono inseriti manualmente dall'utente
+- L'indicizzazione **non scatta al blur** dell'editor
 
 | Stato `vector_status` | Indicatore |
 |---|---|
-| `pending` | `⚠ Not indexed` (amber) |
-| `outdated` | `⚠ Not indexed` (amber) |
-| `indexed`, indexing in corso | `⟳ Indexing...` (spinner amber) |
-| `indexed` | `✓ Indexed` (verde, scompare dopo 3s) |
+| `pending` | `⚠ In attesa` (amber) |
+| `outdated` | `⚠ Non indicizzato` (amber) |
+| indexing in corso | `⟳ Indicizzazione...` (spinner amber, pulsante disabilitato) |
+| `indexed` | `✓ Indicizzato` (verde, scompare dopo 3s) |
 
 ### Zustand UI Store
 ```typescript
