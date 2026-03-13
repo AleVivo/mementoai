@@ -63,7 +63,7 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   question: string;
-  project: string;
+  project?: string;
 }
 
 export interface ChatSource {
@@ -77,4 +77,21 @@ export interface ChatSource {
 export interface ChatResponse {
   answer: string;
   sources: ChatSource[];
+}
+
+export interface AgentRequest {
+  question: string; 
+  project?: string; 
+}
+
+export interface AgentStep {
+  tool: string;
+  args: Record<string, unknown>;
+  result: unknown;
+}
+
+export interface AgentResponse {
+  answer: string;
+  steps: AgentStep[];
+  model: string;
 }

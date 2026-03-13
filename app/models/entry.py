@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field
 from typing import Optional
 from enum import Enum
 from datetime import datetime
-from bson import ObjectId
+from app.models.types import PyObjectId
 
 class EntryType(str, Enum):
     adr = "adr"
@@ -46,7 +46,7 @@ class EntryResponse(BaseModel):
     vector_status: VectorStatus
 
 class EntryDocument(BaseModel):
-    id: Optional[ObjectId] = Field(default=None, alias="_id")
+    id: Optional[PyObjectId] = Field(default=None, alias="_id")
     content: str
     entry_type: EntryType
     title: str

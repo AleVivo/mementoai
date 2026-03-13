@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import entries, search, chat
+from app.routers import entries, search, chat, agent
 from app.services import ollama
 from app.config import settings
 
@@ -41,3 +41,4 @@ app.add_middleware(
 app.include_router(entries.router, prefix="/entries", tags=["entries"])
 app.include_router(search.router, prefix="/search", tags=["search"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
+app.include_router(agent.router, prefix="/agent", tags=["agent"])
