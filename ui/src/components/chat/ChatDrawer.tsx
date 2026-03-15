@@ -44,7 +44,6 @@ export function ChatDrawer() {
         <div className="flex-1 min-h-0 overflow-hidden">
           <ChatHistory
             messages={projectMessages}
-            isWaiting={isWaiting}
             activeProject={activeProject}
           />
         </div>

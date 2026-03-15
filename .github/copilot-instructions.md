@@ -12,24 +12,26 @@ MementoAI/
 │   ├── main.py                 ← FastAPI app + CORSMiddleware
 │   ├── config.py               ← Pydantic settings (.env)
 │   ├── db/mongo.py             ← Motor (async pymongo) client
-│   ├── models/                 ← Pydantic models (entry.py, chat.py, search.py)
-│   ├── routers/                ← FastAPI routers (entries, search, chat)
-│   ├── services/               ← Business logic (entry_service, chat_service, rag, embedding, classifier)
+│   ├── models/                 ← Pydantic models (entry.py, chat.py, search.py, agent.py, chunk.py)
+│   ├── routers/                ← FastAPI routers (entries, search, chat, agent)
+│   ├── services/               ← Business logic (entry_service, chat_service, rag, embedding, chunker, agent, agent_registry, agent_tools, ollama)
 │   └── mappers/                ← MongoDB doc ↔ Pydantic model conversion
 ├── ui/                         ← Tauri v2 + React 19 frontend
 │   └── src/
-│       ├── App.tsx             ← Root layout: Sidebar + MainPanel + ChatPanel
+│       ├── App.tsx             ← Root layout: Sidebar + MainPanel + ChatDrawer
 │       ├── api/                ← Fetch wrappers (client.ts, entries.ts, search.ts, chat.ts)
 │       ├── components/
-│       │   ├── layout/         ← Sidebar.tsx, MainPanel.tsx, ChatPanel.tsx
-│   │   ├── editor/         ← EntryEditor.tsx, EditorToolbar.tsx, EntryMeta.tsx
-│       │   ├── entries/        ← EntryList.tsx, EntryListItem.tsx, EntryTypeBadge.tsx
-│       │   ├── search/         ← SearchBar.tsx, SearchResults.tsx (to implement)
+│       │   ├── layout/         ← Sidebar.tsx, MainPanel.tsx, ThemeToggle.tsx
+│       │   ├── editor/         ← EntryEditor.tsx, EditorToolbar.tsx, EntryMeta.tsx
+│       │   ├── entries/        ← EntryList.tsx, EntryListItem.tsx, EntryTypeBadge.tsx, NewEntryDialog.tsx
+│       │   ├── chat/           ← ChatDrawer.tsx, ChatHistory.tsx, ChatInput.tsx, ChatMessage.tsx
+│       │   ├── search/         ← SearchBar.tsx, SearchResults.tsx
+│       │   ├── loader.tsx      ← MementoLoader SVG animation (shown during streaming)
 │       │   └── ui/             ← shadcn/ui components (auto-generated)
 │       ├── store/              ← Zustand: ui.store.ts, entries.store.ts, chat.store.ts
-│       ├── hooks/              ← Custom hooks (to implement)
+│       ├── hooks/              ← useEntries.ts, useSearch.ts, useChat.ts, useKeyboardShortcuts.ts
 │       ├── types/index.ts      ← TypeScript types (source of truth for frontend)
-│       └── lib/utils.ts        ← cn(), formatDate(), formatWeek()
+│       └── lib/utils.ts        ← cn() helper
 └── .github/
     ├── copilot-instructions.md ← This file (auto-loaded by Copilot)
     └── prompts/                ← Reusable Copilot prompts
@@ -48,10 +50,11 @@ CORS: enabled for all origins (CORSMiddleware configured in `main.py`)
 | `GET` | `/entries/{id}` | Get single entry | — |
 | `POST` | `/entries` | Create entry | No LLM — fast. `vector_status = pending` |
 | `PUT` | `/entries/{id}` | Save entry | No LLM — fast. Sets `vector_status = outdated` |
-| `POST` | `/entries/{id}/index` | Vectorize entry | Slow — runs classifier + embedding via Ollama |
+| `POST` | `/entries/{id}/index` | Vectorize entry | Slow — chunker + embedding (nomic-embed-text). No LLM classifier. |
 | `DELETE` | `/entries/{id}` | Delete entry | — |
 | `POST` | `/search` | Semantic vector search | `SearchRequest` body |
-| `POST` | `/chat` | RAG chat | `ChatRequest` body |
+| `POST` | `/chat` | RAG chat (SSE stream) | `ChatRequest` body — streams `sources`, `token`, `done` events |
+| `POST` | `/agent` | ReAct agent | `AgentRequest` body |
 
 ---
 
@@ -80,6 +83,16 @@ class EntryResponse(BaseModel):
     created_at: datetime
     week: str               # ISO week e.g. "2026-W10"
     vector_status: VectorStatus
+
+class ChatRequest(BaseModel):
+    question: str
+    project: Optional[str] = None
+    top_k: int = 5
+
+class AgentRequest(BaseModel):
+    question: str
+    project: Optional[str] = None
+    max_steps: int = 5  # range 1-10
 ```
 ---
 
@@ -94,15 +107,15 @@ export type VectorStatus = "pending" | "indexed" | "outdated";
 export interface Entry {
   id: string;
   title: string;
-  content: string;          // ← mirrors EntryResponse.content
-  entry_type: EntryType;    // ← mirrors EntryResponse.entry_type
+  content: string;
+  entry_type: EntryType;
   author: string;
   project: string;
   tags: string[];
   summary: string;
   vector_status: VectorStatus;
   created_at: string;
-  updated_at: string;
+  week: string;             // ISO week e.g. "2026-W10"
 }
 
 export interface EntryCreate {
@@ -128,7 +141,6 @@ export interface EntryUpdate {
 export interface SearchRequest {
   query: string;
   project?: string;
-  entry_type?: EntryType;
   top_k?: number;
 }
 
@@ -136,28 +148,55 @@ export interface SearchResult {
   id: string;
   title: string;
   content: string;
+  summary: string;
   author: string;
   project: string;
   entry_type: EntryType;
   tags: string[];
   score: number;
-  created_at: string;
 }
 
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  sources?: ChatSource[];   // present on assistant messages after sources event
+  isStreaming: boolean;
 }
 
 export interface ChatRequest {
-  message: string;
+  question: string;         // ← field name used by backend
   project?: string;
-  history?: ChatMessage[];
 }
 
-export interface ChatResponse {
+export interface ChatSource {
+  entry_id: string;
+  title: string;
+  entry_type: EntryType;
+  section: string | null;
+}
+
+export type SSEEvent =
+  | { type: 'sources'; sources: ChatSource[] }
+  | { type: 'token';   content: string }
+  | { type: 'done' }
+  | { type: 'error';   message: string };
+
+export interface AgentRequest {
+  question: string;
+  project?: string;
+  max_steps?: number;       // default 5, range 1-10
+}
+
+export interface AgentStep {
+  tool: string;
+  args: Record<string, unknown>;
+  result: unknown;
+}
+
+export interface AgentResponse {
   answer: string;
-  sources: SearchResult[];
+  steps: AgentStep[];
+  model: string;
 }
 ```
 
@@ -169,12 +208,14 @@ export interface ChatResponse {
 // ui.store.ts
 interface UIState {
   activeEntryId: string | null;
-  isDirty: boolean;       // unsaved changes
-  isSaving: boolean;      // PUT in progress
-  isIndexing: boolean;    // POST /index in progress
+  isDirty: boolean;         // unsaved changes
+  isSaving: boolean;        // PUT in progress
+  isIndexing: boolean;      // POST /index in progress
   isChatOpen: boolean;
   isSidebarOpen: boolean;
   activeProject: string | null;
+  isNewEntryOpen: boolean;  // new entry dialog open
+  chatMode: "rag" | "agent";
 }
 
 // entries.store.ts
@@ -184,11 +225,12 @@ interface EntriesState {
   setEntries / setLoading / upsertEntry / removeEntry
 }
 
-// chat.store.ts
+// chat.store.ts  (keyed by project name, "__all__" for global scope)
 interface ChatState {
-  messages: Record<string, ChatMessage[]>; // keyed by project
-  isWaiting: boolean;
+  messages: Record<string, ChatMessage[]>;
+  addMessage / appendToken / setSources / setStreamingDone / clearMessages
 }
+// Note: isWaiting is derived in useChat hook, not stored in the Zustand store
 ```
 
 ---

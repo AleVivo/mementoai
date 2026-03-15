@@ -62,7 +62,8 @@ ui/                          ← Tauri frontend root
 │   ├── hooks/
 │   │   ├── useEntries.ts           ← Fetch entries on project change, popola store
 │   │   ├── useSearch.ts            ← Debounced semantic search (300ms)
-│   │   └── useChat.ts              ← send(question) → POST /chat o POST /agent in base a chatMode; project omesso se nessun progetto attivo
+│   │   ├── useChat.ts              ← send(question) → POST /chat o POST /agent in base a chatMode; project omesso se nessun progetto attivo
+│   │   └── useKeyboardShortcuts.ts ← Registra Ctrl+N/K/J a livello window
 │   ├── types/
 │   │   └── index.ts                ← TypeScript types mirroring backend models
 │   └── lib/
@@ -90,34 +91,34 @@ export type VectorStatus = 'pending' | 'indexed' | 'outdated';
 
 export interface Entry {
   id: string;
+  title: string;
   content: string;
   entry_type: EntryType;
-  title: string;
-  summary: string;
-  project: string;
   author: string;
+  project: string;
   tags: string[];
+  summary: string;
+  vector_status: VectorStatus;
   created_at: string; // ISO datetime
   week: string;       // e.g. "2026-W10"
-  vector_status: VectorStatus;
 }
 
 export interface EntryCreate {
+  title: string;
   content: string;
   entry_type: EntryType;
-  title: string;
-  project: string;
   author: string;
+  project: string;
   summary?: string;
   tags?: string[];
 }
 
 export interface EntryUpdate {
+  title?: string;
   content?: string;
   entry_type?: EntryType;
-  title?: string;
-  project?: string;
   author?: string;
+  project?: string;
   summary?: string;
   tags?: string[];
 }
@@ -138,12 +139,13 @@ export interface SearchResult {
   entry_type: EntryType;
   tags: string[];
   score: number;
-  created_at: string;
 }
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  sources?: ChatSource[];   // present on assistant messages after sources event
+  isStreaming: boolean;
 }
 
 export interface ChatRequest {
@@ -152,17 +154,17 @@ export interface ChatRequest {
 }
 
 export interface ChatSource {
-  ref: number;
-  id: string;
+  entry_id: string;
   title: string;
-  type: string;
-  score: number;
+  entry_type: EntryType;
+  section: string | null;
 }
 
-export interface ChatResponse {
-  answer: string;
-  sources: ChatSource[];
-}
+export type SSEEvent =
+  | { type: 'sources'; sources: ChatSource[] }
+  | { type: 'token';   content: string }
+  | { type: 'done' }
+  | { type: 'error';   message: string };
 
 export interface AgentRequest {
   question: string;
@@ -296,6 +298,8 @@ interface UIStore {
   isChatOpen: boolean;
   isSidebarOpen: boolean;
   activeProject: string | null;
+  isNewEntryOpen: boolean;  // new entry dialog open
+  chatMode: 'rag' | 'agent';
 }
 ```
 

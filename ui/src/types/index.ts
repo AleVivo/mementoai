@@ -13,7 +13,7 @@ export interface Entry {
   summary: string;
   vector_status: VectorStatus;
   created_at: string;
-  updated_at: string;
+  week: string;
 }
 
 export interface EntryCreate {
@@ -36,6 +36,8 @@ export interface EntryUpdate {
   summary?: string;
 }
 
+// #### SEARCH TYPES ####
+
 export interface SearchRequest {
   query: string;
   project?: string;
@@ -53,12 +55,15 @@ export interface SearchResult {
   entry_type: EntryType;
   tags: string[];
   score: number;
-  created_at: string;
 }
+
+// #### CHAT TYPES ####
 
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  sources?: ChatSource[];
+  isStreaming: boolean;
 }
 
 export interface ChatRequest {
@@ -67,11 +72,10 @@ export interface ChatRequest {
 }
 
 export interface ChatSource {
-  ref: number;
-  id: string;
+  entry_id: string;
   title: string;
-  type: string;
-  score: number;
+  entry_type: EntryType;
+  section: string | null;
 }
 
 export interface ChatResponse {
@@ -79,6 +83,14 @@ export interface ChatResponse {
   sources: ChatSource[];
 }
 
+export type SSEEvent = 
+  | { type: 'sources'; sources: ChatSource[] }
+  | { type: 'token';   content: string }
+  | { type: 'done' }
+  | { type: 'error';   message: string };
+
+
+// #### AGENT TYPES ####
 export interface AgentRequest {
   question: string; 
   project?: string; 

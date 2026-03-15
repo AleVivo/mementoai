@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useUIStore } from "@/store/ui.store";
 
 export function useKeyboardShortcuts() {
-  const { isDirty, setNewEntryOpen, toggleChat } = useUIStore();
+  const { setNewEntryOpen, toggleChat } = useUIStore();
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -43,6 +43,5 @@ export function useKeyboardShortcuts() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDirty]);
+  }, [setNewEntryOpen, toggleChat]);
 }

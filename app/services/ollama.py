@@ -1,6 +1,8 @@
 import logging
 import httpx
+import json
 from app.config import settings
+from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,29 @@ async def generate_by_prompt(prompt: str) -> str:
         logger.debug(f"[ollama] generate_by_prompt — response length: {len(result)} chars")
         return result
 
+async def stream_by_prompt(prompt: str) -> AsyncGenerator[str, None]:
+    logger.debug(f"[ollama] stream_by_prompt — prompt length: {len(prompt)} chars")
+    async with httpx.AsyncClient(timeout=None) as client:
+        async with client.stream(
+            "POST",
+            f"{settings.ollama_url}/api/generate",
+            json={
+                "model": GENERATE_MODEL,
+                "prompt": prompt,
+                "stream": True,
+                "keep_alive": -1,
+            },
+        ) as response:
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line:
+                    continue
+                chunk = json.loads(line)
+                token = chunk.get("response", "")
+                if token:
+                    yield token
+                if chunk.get("done"):
+                    break
 
 async def generate_embedding(text: str) -> list[float]:
     logger.debug(f"[ollama] generate_embedding — text length: {len(text)} chars")

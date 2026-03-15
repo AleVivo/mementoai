@@ -129,7 +129,7 @@ MementoAI/
 │   │   ├── chunker.py    # HTML chunking: segmentazione per heading, max 300 token/chunk
 │   │   ├── embedding.py  # Wrapper generate_embedding → ollama
 │   │   ├── classifier.py # DEPRECATED — enrich_entry (summary/tag LLM) rimosso dalla pipeline
-│   │   ├── rag.py        # Costruzione context + prompt + chiamata generate
+│   │   ├── rag.py        # Costruzione context + prompt + streaming token via SSE
 │   │   ├── agent.py      # Loop ReAct: ragiona → sceglie tool → esegue → itera fino alla risposta
 │   │   ├── agent_registry.py # Catalogo tool disponibili all'agente (search, filtri, conteggi)
 │   │   ├── chat_service.py
@@ -163,7 +163,7 @@ MementoAI/
 | `POST` | `/entries/{id}/index` | Indicizza manualmente: chunking HTML + embedding vettoriale (`nomic-embed-text`) |
 | `DELETE` | `/entries/{id}` | Elimina entry e relativi chunk |
 | `POST` | `/search` | Ricerca semantica vettoriale sui chunk con score di cosine similarity |
-| `POST` | `/chat` | Chat RAG — risponde citando le fonti per titolo (`[Titolo nota]`); `project` opzionale (omesso = tutta la KB) |
+| `POST` | `/chat` | Chat RAG in streaming SSE — emette eventi `sources` (fonti), `token` (risposta incrementale) e `done`; `project` opzionale (omesso = tutta la KB) |
 | `POST` | `/agent` | Chat agente ReAct — usa tool (ricerca, filtri, conteggi) per rispondere in più step; `project` opzionale |
 
 ---

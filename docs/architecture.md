@@ -153,12 +153,16 @@ User types question in chat panel (modalità RAG)
   → Backend: query embedded (nomic-embed-text)
            → vector search sui chunk (collection `chunks`, indice `chunks_vector_index`)
            → top-k chunk recuperati
-           → context costruito come "[Titolo entry] — Heading\n{testo chunk}"
-           → prompt con istruzione: citare fonti come [Titolo nota]
-           → Ollama completion (qwen2.5:7b)
-  → Response: { answer: string, sources: [{ ref, entry_id, title, type, score, section }] }
+           → SSE stream aperto:
+               data: {"type":"sources","sources":[{"entry_id","title","entry_type","section"},...]}
+               data: {"type":"token","content":"..."}   ← uno per token
+               data: {"type":"done"}
+  → Frontend: SSEEvent parsed da streamChat() async generator
+  → sources event → ChatMessage.sources popolato (accordion fonti)
+  → token events  → content appendato token by token
+  → done event    → isStreaming = false
   → Answer rendered as markdown in chat bubble
-  → Sources shown as references
+  → Sources shown as collapsible accordion above the text
 ```
 
 ### Agent Chat
