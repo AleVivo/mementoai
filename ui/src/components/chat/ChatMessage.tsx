@@ -9,6 +9,16 @@ interface Props {
 export function ChatMessage({ message }: Props) {
   const isUser = message.role === "user";
   const [sourcesOpen, setSourcesOpen] = useState(false);
+  const [reasoningOpen, setReasoningOpen] = useState(false);
+
+  // Balloon vuoto durante il caricamento iniziale — mostra solo il loader (in ChatHistory)
+  const hasVisibleContent =
+    message.content ||
+    message.reasoning ||
+    (message.steps && message.steps.length > 0) ||
+    (message.sources && message.sources.length > 0);
+
+  if (!isUser && message.isStreaming && !hasVisibleContent) return null;
 
   return (
     <div className={`flex flex-col gap-0.5 ${isUser ? "items-end" : "items-start"}`}>
@@ -50,6 +60,35 @@ export function ChatMessage({ message }: Props) {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* 2 — Reasoning (Agent) */}
+            {message.reasoning && (
+              <div className="mb-2 pb-2 border-b border-[var(--border-ui)]">
+                <button
+                  onClick={() => setReasoningOpen((v) => !v)}
+                  className="flex items-center gap-1 text-[11px] text-[var(--text-muted-ui)] hover:text-foreground transition-colors italic"
+                >
+                  {reasoningOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  Ragionamento
+                </button>
+                {reasoningOpen && (
+                  <p className="mt-1.5 text-[11px] text-[var(--text-muted-ui)] italic leading-relaxed whitespace-pre-wrap">
+                    {message.reasoning}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* 3 — Steps (Agent) */}
+            {message.steps && message.steps.length > 0 && (
+              <div className="mb-2 pb-2 border-b border-[var(--border-ui)] flex flex-col gap-1">
+                {message.steps.map((step, i) => (
+                  <span key={i} className="text-[11px] text-[var(--text-muted-ui)] flex items-center gap-1.5">
+                    <span className="font-mono bg-background/60 rounded px-1">{step.tool}</span>
+                  </span>
+                ))}
               </div>
             )}
 

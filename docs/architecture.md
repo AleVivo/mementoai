@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-14
+last_updated: 2026-03-16
 ---
 
 # MementoAI — Architecture
@@ -40,8 +40,8 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 │  POST /entries/:id/index← vectorize entry       │
 │  DEL  /entries/:id      ← delete entry          │
 │  POST /search           ← semantic vector search│
-│  POST /chat             ← RAG chat question     │
-│  POST /agent            ← ReAct agent question  │
+│  POST /chat             ← RAG chat (SSE stream)  │
+│  POST /agent            ← ReAct agent (SSE stream)│
 └──────────────────┬──────────────────────────────┘
                    │
         ┌──────────┴──────────┐
@@ -53,7 +53,7 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 └──────────────┘   └─────────────────────┘
 ```
 
-## Backend (requires changes — see Data Flow section)
+## Backend
 
 **Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, httpx, pydantic-settings
 
@@ -170,16 +170,19 @@ User types question in chat panel (modalità RAG)
 User types question in chat panel (modalità Agent)
   → POST /agent { question, project?, max_steps }
      - project omesso = tool operano su tutta la knowledge base
-  → Backend: loop ReAct — max max_steps iterazioni
-       1. LLM ragiona sull'input (Thought)
-       2. Sceglie un tool dal registry (Action)
-             tool disponibili: search_semantic, filter_by_project,
-                               filter_by_type, count_entries, get_entry
-       3. Esegue il tool e osserva il risultato (Observation)
+  → Backend: loop ReAct — max max_steps iterazioni con stream=True
+       1. LLM ragiona sull'input (streaming tokens come 'reasoning')
+       2. Sceglie un tool dal registry (tool_calls nel chunk intermedio)
+       3. Esegue il tool e manda subito l'evento 'step' al client
        4. Ripete finché ha abbastanza informazioni o raggiunge max_steps
-       5. Genera la risposta finale
-  → Response: { answer: string, steps: [{ tool, args, result }], model }
+       5. Genera la risposta finale come token in streaming
+  → SSE stream:
+       data: {"type":"reasoning","content":"..."}   ← ragionamento del modello
+       data: {"type":"step","tool":"...","args":{},"result":{}}  ← tool eseguito
+       data: {"type":"token","content":"..."}         ← risposta finale token-by-token
+       data: {"type":"done","steps":[...],"model":"..."}
   → Answer rendered as markdown in chat bubble
+  → Steps shown as collapsible list above the answer
 ```
 
 ## Deployment

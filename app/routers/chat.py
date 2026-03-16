@@ -5,10 +5,6 @@ from fastapi.responses import StreamingResponse
 
 router = APIRouter()
 
-# @router.post("")
-# async def chat_endpoint(request: ChatRequest):
-#     return await chat_service.chat(request)
-
 @router.post("")
 async def chat_endpoint(request: ChatRequest):
     return StreamingResponse(

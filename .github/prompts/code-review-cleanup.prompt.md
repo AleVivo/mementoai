@@ -59,7 +59,7 @@ Non aggiungere sezioni nuove — aggiorna solo ciò che è cambiato.
 
 Leggi i file Python in `app/models/`, `app/services/`, `app/routers/` e verifica:
 - Nessun campo nei modelli Pydantic è definito ma mai usato
-- Nessuna funzione nei service è definita ma mai chiamata da un router
+- Nessuna funzione nei service è definita ma mai chiamata da un router senza essere commentata come deprecata o in attesa di rimozione
 - I DTO di request/response sono allineati a ciò che il frontend invia e si aspetta
 
 ## Output atteso

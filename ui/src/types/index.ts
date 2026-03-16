@@ -41,7 +41,6 @@ export interface EntryUpdate {
 export interface SearchRequest {
   query: string;
   project?: string;
-  entry_type?: EntryType;
   top_k?: number;
 }
 
@@ -62,6 +61,8 @@ export interface SearchResult {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  reasoning?: string;
+  steps?: AgentStep[];
   sources?: ChatSource[];
   isStreaming: boolean;
 }
@@ -76,11 +77,6 @@ export interface ChatSource {
   title: string;
   entry_type: EntryType;
   section: string | null;
-}
-
-export interface ChatResponse {
-  answer: string;
-  sources: ChatSource[];
 }
 
 export type SSEEvent = 
@@ -102,8 +98,9 @@ export interface AgentStep {
   result: unknown;
 }
 
-export interface AgentResponse {
-  answer: string;
-  steps: AgentStep[];
-  model: string;
-}
+export type AgentSSEEvent =
+  | { type: 'token';     content: string }
+  | { type: 'reasoning'; content: string }
+  | { type: 'step';      tool: string; args: Record<string, unknown>; result: unknown }
+  | { type: 'done';      steps: AgentStep[]; model: string }
+  | { type: 'error';     message: string };

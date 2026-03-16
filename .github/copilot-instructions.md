@@ -54,7 +54,7 @@ CORS: enabled for all origins (CORSMiddleware configured in `main.py`)
 | `DELETE` | `/entries/{id}` | Delete entry | — |
 | `POST` | `/search` | Semantic vector search | `SearchRequest` body |
 | `POST` | `/chat` | RAG chat (SSE stream) | `ChatRequest` body — streams `sources`, `token`, `done` events |
-| `POST` | `/agent` | ReAct agent | `AgentRequest` body |
+| `POST` | `/agent` | ReAct agent (SSE stream) | `AgentRequest` body — streams `reasoning`, `step`, `token`, `done` events |
 
 ---
 
@@ -159,6 +159,8 @@ export interface SearchResult {
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  reasoning?: string;       // agent reasoning (collapsible)
+  steps?: AgentStep[];      // agent tool calls (collapsible)
   sources?: ChatSource[];   // present on assistant messages after sources event
   isStreaming: boolean;
 }
@@ -184,7 +186,6 @@ export type SSEEvent =
 export interface AgentRequest {
   question: string;
   project?: string;
-  max_steps?: number;       // default 5, range 1-10
 }
 
 export interface AgentStep {
@@ -193,11 +194,12 @@ export interface AgentStep {
   result: unknown;
 }
 
-export interface AgentResponse {
-  answer: string;
-  steps: AgentStep[];
-  model: string;
-}
+export type AgentSSEEvent =
+  | { type: 'token';     content: string }
+  | { type: 'reasoning'; content: string }
+  | { type: 'step';      tool: string; args: Record<string, unknown>; result: unknown }
+  | { type: 'done';      steps: AgentStep[]; model: string }
+  | { type: 'error';     message: string };
 ```
 
 ---
@@ -228,7 +230,7 @@ interface EntriesState {
 // chat.store.ts  (keyed by project name, "__all__" for global scope)
 interface ChatState {
   messages: Record<string, ChatMessage[]>;
-  addMessage / appendToken / setSources / setStreamingDone / clearMessages
+  addMessage / appendToken / appendReasoning / addStep / setSources / setStreamingDone / clearMessages
 }
 // Note: isWaiting is derived in useChat hook, not stored in the Zustand store
 ```

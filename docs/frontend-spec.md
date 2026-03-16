@@ -144,6 +144,8 @@ export interface SearchResult {
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+  reasoning?: string;       // agent reasoning (collapsible)
+  steps?: AgentStep[];      // agent tool calls (collapsible)
   sources?: ChatSource[];   // present on assistant messages after sources event
   isStreaming: boolean;
 }
@@ -169,7 +171,6 @@ export type SSEEvent =
 export interface AgentRequest {
   question: string;
   project?: string;      // opzionale — omesso = scope globale
-  max_steps?: number;    // default 5, range 1-10
 }
 
 export interface AgentStep {
@@ -178,11 +179,12 @@ export interface AgentStep {
   result: unknown;
 }
 
-export interface AgentResponse {
-  answer: string;
-  steps: AgentStep[];
-  model: string;
-}
+export type AgentSSEEvent =
+  | { type: 'token';     content: string }
+  | { type: 'reasoning'; content: string }
+  | { type: 'step';      tool: string; args: Record<string, unknown>; result: unknown }
+  | { type: 'done';      steps: AgentStep[]; model: string }
+  | { type: 'error';     message: string };
 ```
 
 ## Layout Design
