@@ -55,6 +55,7 @@ MONGODB_PASSWORD=<password>
 MONGODB_DB=memento
 OLLAMA_URL=http://localhost:11434
 LOG_LEVEL=INFO   # DEBUG per log dettagliati con timing, INFO per flusso normale
+JWT_SECRET_KEY=<stringa-casuale-lunga>  # es. openssl rand -hex 32
 ```
 
 > **Il file `.env` non deve mai essere committato su git.** Contiene credenziali sensibili ed è già incluso nel `.gitignore`.
@@ -120,11 +121,14 @@ Produce un installer `.exe` standalone in `ui/src-tauri/target/release/bundle/`.
 ```
 MementoAI/
 ├── app/
-│   ├── main.py           # FastAPI entrypoint + lifespan (preload/unload modelli Ollama)
+│   ├── main.py           # FastAPI entrypoint + lifespan (preload/unload modelli Ollama + indice DB)
 │   ├── config.py         # Settings con pydantic-settings (.env)
-│   ├── models/           # Modelli Pydantic (Entry, Chunk, VectorStatus, SearchResult...)
-│   ├── routers/          # Endpoint API (entries, search, chat, agent)
+│   ├── models/           # Modelli Pydantic (Entry, User, Chunk, VectorStatus, SearchResult...)
+│   ├── routers/          # Endpoint API (entries, search, chat, agent, auth)
+│   ├── dependencies/
+│   │   └── auth.py       # get_current_user — dependency FastAPI per tutti gli endpoint protetti
 │   ├── services/
+│   │   ├── auth.py       # JWT (PyJWT), hashing (pwdlib/argon2), build_token_response
 │   │   ├── ollama.py     # Client Ollama — qwen2.5:7b (generate) + nomic-embed-text (embed)
 │   │   ├── chunker.py    # HTML chunking: segmentazione per heading, max 300 token/chunk
 │   │   ├── embedding.py  # Wrapper generate_embedding → ollama
@@ -137,6 +141,7 @@ MementoAI/
 │   │   └── entry_service.py
 │   └── db/
 │       ├── mongo.py       # Collection entries
+│       ├── users_mongo.py # Collection users
 │       └── chunks_mongo.py # Collection chunks + vector search
 ├── ui/                   # Desktop app Tauri v2 + React + TipTap
 │   ├── src/              # Codice React (types, api, store, components)
@@ -156,6 +161,9 @@ MementoAI/
 
 | Metodo | Endpoint | Descrizione |
 |---|---|---|
+| `POST` | `/auth/register` | Registra un nuovo utente — `{ email, password, first_name?, last_name?, company? }` |
+| `POST` | `/auth/login` | Login — restituisce `access_token` (30 min), `refresh_token` (7 gg) e profilo utente |
+| `POST` | `/auth/refresh` | Rinnova access token da refresh token; restituisce nuova coppia di token |
 | `POST` | `/entries` | Crea una nuova entry (no LLM — solo persistenza, `vector_status: pending`) |
 | `GET` | `/entries` | Lista entries con filtri (`project`, `type`, `week`, `limit`, `skip`) |
 | `GET` | `/entries/{id}` | Singola entry per ID |

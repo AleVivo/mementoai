@@ -1,10 +1,18 @@
 import { BASE_URL } from "./client";
+import { useAuthStore } from "../store/auth.store";
 import type { ChatRequest, AgentRequest, AgentSSEEvent, SSEEvent } from "../types";
+
+function authHeaders(): Record<string, string> {
+  const token = useAuthStore.getState().token;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return headers;
+}
 
 export async function* streamAgent(request: AgentRequest): AsyncGenerator<AgentSSEEvent> {
   const response = await fetch(`${BASE_URL}/agent`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify(request),
   });
 
@@ -35,15 +43,15 @@ export async function* streamAgent(request: AgentRequest): AsyncGenerator<AgentS
   }
 }
 
-export async function* streamChat(request: ChatRequest): AsyncGenerator<SSEEvent>{
+export async function* streamChat(request: ChatRequest): AsyncGenerator<SSEEvent> {
   const response = await fetch(`${BASE_URL}/chat`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify(request),
   });
 
   if (!response.ok) throw new Error(`API error: ${response.status}`);
-  if (!response.body) throw new Error('No response body');
+  if (!response.body) throw new Error("No response body");
 
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -54,9 +62,9 @@ export async function* streamChat(request: ChatRequest): AsyncGenerator<SSEEvent
     if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
-    
+
     const parts = buffer.split("\n\n");
-    buffer = parts.pop() ?? '';
+    buffer = parts.pop() ?? "";
 
     for (const part of parts) {
       const line = part.replace(/^data: /, '').trim();

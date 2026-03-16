@@ -3,3 +3,6 @@ uvicorn
 pymongo[srv]
 pydantic-settings
 httpx
+PyJWT
+pwdlib[argon2]
+python-multipart

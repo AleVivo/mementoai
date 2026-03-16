@@ -62,6 +62,22 @@ Leggi i file Python in `app/models/`, `app/services/`, `app/routers/` e verifica
 - Nessuna funzione nei service è definita ma mai chiamata da un router senza essere commentata come deprecata o in attesa di rimozione
 - I DTO di request/response sono allineati a ciò che il frontend invia e si aspetta
 
+## 8. Deduplicazione codice
+
+Analizza il codebase alla ricerca di logica duplicata introdotta durante lo sprint:
+
+**Backend:**
+- Funzioni o blocchi di codice logicamente identici in più file `app/routers/`, `app/services/`, `app/db/`
+- Costruzione ripetuta degli stessi modelli Pydantic (pattern `ModelName(field=x.field, ...)` in più punti) — valuta l'estrazione di un helper o factory
+- Query MongoDB con lo stesso pattern ripetute in più funzioni DB
+
+**Frontend:**
+- Componenti React o sezioni JSX identiche usate in più pagine — valuta l'estrazione in un componente condiviso
+- Logica di stato o side effect duplicata tra hook o componenti — valuta l'estrazione in un hook custom
+- Stili Tailwind identici ripetuti su più elementi — valuta l'uso di una classe componente o variabile
+
+Per ogni duplicazione identificata: applica la refactoring solo se la logica appare almeno 2 volte ed è identica (non solo simile). Non introdurre astrazioni per casi che potrebbero divergere in futuro.
+
 ## Output atteso
 
 Al termine:

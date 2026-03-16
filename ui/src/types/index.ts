@@ -104,3 +104,21 @@ export type AgentSSEEvent =
   | { type: 'step';      tool: string; args: Record<string, unknown>; result: unknown }
   | { type: 'done';      steps: AgentStep[]; model: string }
   | { type: 'error';     message: string };
+
+// #### AUTH TYPES ####
+
+export interface User {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  company: string;
+  created_at: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user: User;
+}

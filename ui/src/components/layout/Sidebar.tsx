@@ -1,5 +1,6 @@
-import { PanelLeftClose, MessageSquare } from "lucide-react";
+import { PanelLeftClose, MessageSquare, LogOut } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
+import { useAuthStore } from "@/store/auth.store";
 import { useEntriesStore } from "@/store/entries.store";
 import { useEntries } from "@/hooks/useEntries";
 import { EntryList } from "@/components/entries/EntryList";
@@ -10,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 export function Sidebar() {
   const { activeProject, setActiveProject, toggleSidebar, toggleChat, setActiveEntryId } = useUIStore();
   const { entries, isLoading } = useEntriesStore();
+  const { user, logout } = useAuthStore();
   useEntries();
 
   const projects = Array.from(new Set(entries.map((e) => e.project))).sort();
@@ -76,6 +78,26 @@ export function Sidebar() {
             </button>
           </TooltipTrigger>
           <TooltipContent>Apri chat</TooltipContent>
+        </Tooltip>
+      </div>
+
+      {/* User / logout */}
+      <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-ui)]">
+        <div className="flex flex-col min-w-0">
+          {(user?.first_name || user?.last_name) && (
+            <span className="text-xs font-medium text-foreground truncate">
+              {[user.first_name, user.last_name].filter(Boolean).join(" ")}
+            </span>
+          )}
+          <span className="text-xs text-[var(--text-muted-ui)] truncate" title={user?.email}>{user?.email}</span>
+        </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button onClick={logout} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted-ui)] transition-colors">
+              <LogOut size={14} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent>Logout</TooltipContent>
         </Tooltip>
       </div>
     </aside>

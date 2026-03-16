@@ -16,48 +16,61 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 │  Desktop App (Tauri v2)                         │
 │  ┌──────────────────────────────────────────┐   │
 │  │  Frontend (React + Vite)                 │   │
-│  │  ┌─────────────┬────────────────────┐   │   │
-│  │  │  Sidebar    │  Main Panel        │   │   │
-│  │  │  - Projects │  ┌──────────────┐  │   │   │
-│  │  │  - Entries  │  │ TipTap Block │  │   │   │
-│  │  │  - Search   │  │ Editor       │  │   │   │
-│  │  │             │  └──────────────┘  │   │   │
-│  │  │             │  ┌──────────────┐  │   │   │
-│  │  │             │  │ RAG Chat     │  │   │   │
-│  │  │             │  │ Panel        │  │   │   │
-│  │  │             │  └──────────────┘  │   │   │
-│  │  └─────────────┴────────────────────┘   │   │
+│  │  ┌─────────────┬────────────────────┐    │   │
+│  │  │  Sidebar    │  Main Panel        │    │   │
+│  │  │  - Projects │  ┌──────────────┐  │    │   │
+│  │  │  - Entries  │  │ TipTap Block │  │    │   │
+│  │  │  - Search   │  │ Editor       │  │    │   │
+│  │  │             │  └──────────────┘  │    │   │
+│  │  │             │  ┌──────────────┐  │    │   │
+│  │  │             │  │ RAG Chat     │  │    │   │
+│  │  │             │  │ Panel        │  │    │   │
+│  │  │             │  └──────────────┘  │    │   │
+│  │  └─────────────┴────────────────────┘    │   │
 │  └──────────────────────────────────────────┘   │
 └──────────────────┬──────────────────────────────┘
                    │ HTTP localhost:8000
-┌──────────────────▼──────────────────────────────┐
-│  Backend (FastAPI — Python)                     │
-│                                                 │
-│  POST /entries          ← create entry          │
-│  GET  /entries          ← list entries (filter) │
-│  GET  /entries/:id      ← get single entry      │
-│  PUT  /entries/:id      ← save entry (no LLM)   │
-│  POST /entries/:id/index← vectorize entry       │
-│  DEL  /entries/:id      ← delete entry          │
-│  POST /search           ← semantic vector search│
-│  POST /chat             ← RAG chat (SSE stream)  │
-│  POST /agent            ← ReAct agent (SSE stream)│
-└──────────────────┬──────────────────────────────┘
+┌──────────────────▼────────────────────────────────────────────┐
+│  Backend (FastAPI — Python)                                   │
+│  POST /auth/register     ← registrazione utente               │  
+|  POST /auth/login        ← login → JWT access                 |
+|  POST /auth/refresh      ← rinnovo token (token rotation)     |
+│  POST /entries          ← create entry                        │
+│  GET  /entries          ← list entries (filter)               │
+│  GET  /entries/:id      ← get single entry                    │
+│  PUT  /entries/:id      ← save entry (no LLM)                 │
+│  POST /entries/:id/index← vectorize entry                     │
+│  DEL  /entries/:id      ← delete entry                        │
+│  POST /search           ← semantic vector search              │
+│  POST /chat             ← RAG chat (SSE stream)               │
+│  POST /agent            ← ReAct agent (SSE stream)            │
+└──────────────────┬────────────────────────────────────────────┘
                    │
         ┌──────────┴──────────┐
         │                     │
 ┌───────▼──────┐   ┌──────────▼──────────┐
-│  MongoDB     │   │  Ollama (local LLM)  │
-│  (documents  │   │  - embeddings        │
-│  + vectors)  │   │  - chat completion   │
+│  MongoDB     │   │  Ollama (local LLM) │
+│  (documents  │   │  - embeddings       │
+│  + vectors)  │   │  - chat completion  │
 └──────────────┘   └─────────────────────┘
 ```
 
 ## Backend
 
-**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, httpx, pydantic-settings
+**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, httpx, pydantic-settings, PyJWT, pwdlib[argon2]
 
 ### Domain Model
+
+**User** — l'identità autenticata:
+| Field | Type | Description |
+|---|---|---|
+| `id` | `str` | MongoDB ObjectId |
+| `email` | `str` | Email univoca (indice unique) |
+| `hashed_password` | `str` | Hash argon2 (non esposto nelle API) |
+| `first_name` | `str` | Nome |
+| `last_name` | `str` | Cognome |
+| `company` | `str` | Azienda (opzionale) |
+| `created_at` | `datetime` | Timestamp di registrazione |
 
 **Entry** — the core document unit:
 | Field | Type | Description |
@@ -76,6 +89,7 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 | `vector_status` | `VectorStatus` | `pending` \| `indexed` \| `outdated` |
 
 ### Services
+- `auth` (service) — `hash_password`, `verify_password` (argon2), `create_access_token`, `create_refresh_token`, `decode_*` (PyJWT HS256), `build_token_response`, `user_to_response`
 - `entry_service` — CRUD operations on entries
 - `search_service` — semantic vector search via chunk embeddings
 - `chat_service` — orchestrates search + RAG
@@ -101,7 +115,75 @@ Entrambi vengono pre-caricati all'avvio dell'app (`keep_alive: -1`) e scaricati 
 
 See [frontend-spec.md](./frontend-spec.md) for full detail.
 
+## Authentication & Authorization
+
+### Strategia
+
+Autenticazione **stateless JWT** con token rotation. Nessun RBAC per ora — tutti gli utenti autenticati hanno accesso in lettura/scrittura all'intera knowledge base. Il RBAC verrà implementato in uno sprint successivo.
+
+### Token
+
+| Token | Durata default | Contenuto claims |
+|---|---|---|
+| Access token | 30 min | `sub` (userId), `email`, `type: "access"`, `exp` |
+| Refresh token | 7 giorni | `sub`, `type: "refresh"`, `exp` |
+
+Entrambi firmati HS256 con `JWT_SECRET_KEY` dal `.env`.
+
+### Flusso di autenticazione
+
+```
+User → POST /auth/register { email, password, first_name?, last_name?, company? }
+  → password hashata con argon2 (pwdlib)
+  → UserDocument salvato in MongoDB (collection `users`, indice unique su `email`)
+  → Response: UserResponse (senza password)
+
+User → POST /auth/login { email, password }
+  → lookup per email + verify argon2 (costante nel tempo — anti timing attack)
+  → Response: TokenResponse { access_token, refresh_token, user: UserResponse }
+  → Frontend: token salvati in localStorage, profilo in Zustand store
+
+Request autenticata → header Authorization: Bearer <access_token>
+  → dependency get_current_user() in app/dependencies/auth.py
+  → decodifica JWT, lookup utente per sub (ObjectId _id)
+  → 401 se token invalido/scaduto/utente non trovato
+
+Access token scaduto → POST /auth/refresh { refresh_token }
+  → nuovi access_token + refresh_token (token rotation)
+  → Response: TokenResponse
+  → Frontend: refresh silenzioso — la request originale viene ripetuta
+```
+
+### Endpoint pubblici vs protetti
+
+| Endpoint | Autenticazione richiesta |
+|---|---|
+| `POST /auth/register` | ❌ pubblico |
+| `POST /auth/login` | ❌ pubblico |
+| `POST /auth/refresh` | ❌ pubblico |
+| Tutti gli altri (`/entries`, `/search`, `/chat`, `/agent`) | ✅ Bearer token |
+
+### Frontend
+
+- `ui/src/store/auth.store.ts` — Zustand store: `token`, `refreshToken`, `user`; persistiti in `localStorage`
+- `ui/src/api/client.ts` — injetta `Authorization: Bearer` header su ogni request; su 401 tenta refresh silenzioso (singleton promise — evita thundering herd); se il refresh fallisce chiama `logout()`
+- `ui/src/api/chat.ts` — idem per le SSE stream di `/chat` e `/agent` (fetch dirette non passano per `client.ts`)
+- `ui/src/components/auth/` — `LoginPage`, `RegisterPage`, `AuthBrandingPanel`; il toggle tema è disponibile prima del login
+- `ui/src/App.tsx` — auth gate: se `token === null` → pagine auth, altrimenti layout principale
+
 ## Data Flow
+
+### Register / Login
+```
+POST /auth/register { email, password, first_name?, last_name?, company? }
+  → Valida email univoca → hasha password → salva UserDocument
+  → Response: UserResponse (201)
+
+POST /auth/login { email, password }
+  → Verifica credenziali (costante nel tempo)
+  → Response: TokenResponse { access_token, refresh_token, user }
+  → UI: token in localStorage, layout principale sbloccato
+```
 
 ### Create Entry
 ```
