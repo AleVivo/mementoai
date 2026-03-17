@@ -3,13 +3,25 @@ import logging
 import time
 from app.models.chunk import ChunkSearchResult
 from app.services import ollama
+from app.services.llm.factory import get_chat_provider
 from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
-def build_prompt(question: str, results: list[ChunkSearchResult]) -> str:
-    # De-duplica i chunk per entry prima di costruire il contesto
-    # così ogni fonte ha un ref_num univoco e stabile
+RAG_SYSTEM_PROMPT = """Sei un assistente per team di sviluppo.
+Rispondi alla domanda usando SOLO le informazioni fornite nel contesto.
+Se il contesto è vuoto o non contiene informazioni rilevanti, rispondi:
+"Non ho trovato informazioni su questo argomento nella knowledge base."
+Cita le fonti usando ESCLUSIVAMENTE il titolo tra parentesi quadre \
+esattamente come appare nel contesto, es. [Titolo della nota].
+Non inventare titoli. Non aggiungere informazioni esterne al contesto.
+Rispondi in italiano."""
+
+def build_context_message(question: str, results: list[ChunkSearchResult]) -> str:
+    """
+    Costruisce il messaggio USER: solo contesto + domanda.
+    Le istruzioni di comportamento sono nel system prompt, non qui.
+    """
     seen: dict[str, int] = {}
     unique_chunks: list[tuple[int, ChunkSearchResult]] = []
     for chunk in results:
@@ -19,62 +31,32 @@ def build_prompt(question: str, results: list[ChunkSearchResult]) -> str:
         unique_chunks.append((seen[eid], chunk))
 
     context_parts = []
-    for ref, chunk in unique_chunks:
+    for _, chunk in unique_chunks:
         section_label = chunk.heading if chunk.heading else "Contenuto"
         context_parts.append(
-            f"[{chunk.entry_title}] — {section_label}\n"
-            f"{chunk.text}"
+            f"[{chunk.entry_title}] — {section_label}\n{chunk.text}"
         )
     context = "\n\n---\n\n".join(context_parts)
-    logger.info(f"[rag] Context built — {len(unique_chunks)} chunk(s), {len(seen)} source(s), prompt context length: {len(context)} chars")
 
-    prompt = f"""Sei un assistente per team di sviluppo. Rispondi alla domanda usando SOLO le informazioni fornite nel contesto.
-        Se la risposta non è nel contesto, dillo esplicitamente.
-        Cita le fonti usando ESCLUSIVAMENTE il titolo tra parentesi quadre esattamente come appare nel contesto, es. [Titolo della nota]. Non inventare titoli.
+    logger.info(
+        f"[rag] Context built — {len(unique_chunks)} chunk(s), "
+        f"{len(seen)} source(s), {len(context)} chars"
+    )
 
-        CONTESTO:
-        {context}
-
-        DOMANDA: {question}
-
-        RISPOSTA:"""
-    return prompt
+    return f"CONTESTO:\n{context}\n\nDOMANDA: {question}"
         
-# DEPRECATED: this was the original non-streaming implementation of the RAG response generation, kept here for reference until we are sure we won't need it anymore. The streaming version is now the default and only implementation used in the chat endpoint.
-async def return_chat_response(question: str, results: list[ChunkSearchResult]) -> dict:
-    if not results:
-        logger.warning("[rag] No chunks retrieved — returning empty answer")
-        return {
-            "answer": "Nessuna informazione rilevante trovata nella knowledge base.",
-            "sources": [],
-        }
-    
-    prompt = build_prompt(question, results)
-    logger.info(f"[rag] Calling Ollama generate — prompt length: {len(prompt)} chars")
-    t0 = time.perf_counter()
-    answer = await ollama.generate_by_prompt(prompt)
-    logger.info(f"[rag] Ollama generate done ({time.perf_counter()-t0:.2f}s) — answer length: {len(answer)} chars")
-    return {
-        "answer": answer,
-    }
-
 async def stream_chat_response(
-    question: str, 
-    results: list[ChunkSearchResult]) -> AsyncGenerator[str,None]:
-    """
-    Async generator che yielda eventi SSE per POST /chat.
-    Ogni yield è una stringa nel formato "data: {...}\n\n".
-    """
-    # if not results:
-    #     logger.warning("[rag] No chunks retrieved — returning empty answer")
-    #     return {
-    #         "answer": "Nessuna informazione rilevante trovata nella knowledge base.",
-    #         "sources": [],
-    #     }
-    prompt = build_prompt(question, results)
-    async for token in ollama.stream_by_prompt(prompt):
-        event = {"type": "token", "content": token}
-        yield f"data: {json.dumps(event)}\n\n"
-        
-    yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    question: str,
+    results: list[ChunkSearchResult],
+) -> AsyncGenerator[str, None]:
+    
+    user_message = build_context_message(question, results)
+    provider = get_chat_provider()
 
+    async for token in provider.stream_chat(
+        messages=[{"role": "user", "content": user_message}],
+        system_prompt=RAG_SYSTEM_PROMPT,
+    ):
+        yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+    yield f"data: {json.dumps({'type': 'done'})}\n\n"

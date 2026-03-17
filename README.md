@@ -22,7 +22,9 @@ Knowledge base conversazionale per team di sviluppo piccoli. Permette di cattura
 - [Rust + cargo](https://rustup.rs/) — toolchain `stable-x86_64-pc-windows-msvc`
 - **Windows:** [Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) con workload *Sviluppo di applicazioni desktop con C++* (richiesto da Rust per il linker `link.exe`)
 
-### Modelli Ollama richiesti
+### Modelli Ollama (provider default)
+
+Necessari solo se `LLM_PROVIDER=ollama` (default):
 
 ```bash
 ollama pull qwen2.5:7b
@@ -31,10 +33,12 @@ ollama pull nomic-embed-text
 
 | Modello | Uso |
 |---|---|
-| `qwen2.5:7b` | Generazione risposte RAG chat |
+| `qwen2.5:7b` | Generazione risposte RAG e agente ReAct |
 | `nomic-embed-text` | Embedding vettoriale dei chunk (768 dimensioni) |
 
-> All'avvio del backend entrambi i modelli vengono pre-caricati in memoria (`keep_alive: -1`) e scaricati solo allo spegnimento. Questo elimina il cold-start sulla prima richiesta.
+> Con Ollama, entrambi i modelli vengono pre-caricati in memoria (`keep_alive: -1`) e scaricati allo spegnimento. Con provider cloud (OpenAI, Groq) il preload viene saltato.
+
+> **Alternativa cloud:** imposta `LLM_PROVIDER=openai` o `LLM_PROVIDER=groq` nel `.env` — in questo caso Ollama non è necessario. Vedi la sezione Configurazione.
 
 ---
 
@@ -54,8 +58,16 @@ MONGODB_USER=<utente>
 MONGODB_PASSWORD=<password>
 MONGODB_DB=memento
 OLLAMA_URL=http://localhost:11434
-LOG_LEVEL=INFO   # DEBUG per log dettagliati con timing, INFO per flusso normale
+LOG_LEVEL=INFO            # DEBUG per log dettagliati con timing, INFO per flusso normale
 JWT_SECRET_KEY=<stringa-casuale-lunga>  # es. openssl rand -hex 32
+
+# Provider LLM (default: ollama — non richiedono API key)
+LLM_PROVIDER=ollama        # ollama | openai | groq
+EMBEDDING_PROVIDER=ollama  # ollama | openai  (può differire da LLM_PROVIDER)
+
+# Opzionale — richiesti solo con i rispettivi provider
+# OPENAI_API_KEY=sk-...
+# GROQ_API_KEY=gsk_...
 ```
 
 > **Il file `.env` non deve mai essere committato su git.** Contiene credenziali sensibili ed è già incluso nel `.gitignore`.
@@ -129,9 +141,13 @@ MementoAI/
 │   │   └── auth.py       # get_current_user — dependency FastAPI per tutti gli endpoint protetti
 │   ├── services/
 │   │   ├── auth.py       # JWT (PyJWT), hashing (pwdlib/argon2), build_token_response
-│   │   ├── ollama.py     # Client Ollama — qwen2.5:7b (generate) + nomic-embed-text (embed)
+│   │   ├── llm/          # Pacchetto provider LLM (pattern Strategy)
+│   │   │   ├── base.py           # ABC: EmbeddingProvider, ChatProvider, ToolChatProvider
+│   │   │   ├── factory.py        # get_embedding_provider() / get_chat_provider() — lru_cache
+│   │   │   ├── ollama_provider.py # OllamaEmbeddingProvider, OllamaChatProvider, preload/unload
+│   │   │   └── openai_provider.py # OpenAIEmbeddingProvider, OpenAIChatProvider, GroqChatProvider
 │   │   ├── chunker.py    # HTML chunking: segmentazione per heading, max 300 token/chunk
-│   │   ├── embedding.py  # Wrapper generate_embedding → ollama
+│   │   ├── embedding.py  # Thin wrapper → llm.factory.get_embedding_provider().embed()
 │   │   ├── classifier.py # DEPRECATED — enrich_entry (summary/tag LLM) rimosso dalla pipeline
 │   │   ├── rag.py        # Costruzione context + prompt + streaming token via SSE
 │   │   ├── agent.py      # Loop ReAct: ragiona → sceglie tool → esegue → itera fino alla risposta

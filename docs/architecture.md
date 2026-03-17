@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-16
+last_updated: 2026-03-17
 ---
 
 # MementoAI — Architecture
@@ -48,16 +48,16 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
                    │
         ┌──────────┴──────────┐
         │                     │
-┌───────▼──────┐   ┌──────────▼──────────┐
-│  MongoDB     │   │  Ollama (local LLM) │
-│  (documents  │   │  - embeddings       │
-│  + vectors)  │   │  - chat completion  │
-└──────────────┘   └─────────────────────┘
+┌───────▼──────┐   ┌──────────────────────┐
+│  MongoDB     │   │  LLM Provider        │
+│  (documents  │   │  Ollama (default)    │
+│  + vectors)  │   │  OpenAI / Groq       │
+└──────────────┘   └──────────────────────┘
 ```
 
 ## Backend
 
-**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, httpx, pydantic-settings, PyJWT, pwdlib[argon2]
+**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, httpx, pydantic-settings, PyJWT, pwdlib[argon2], openai (opzionale)
 
 ### Domain Model
 
@@ -97,17 +97,41 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 - `agent_registry` — catalogo dei tool disponibili all'agente: ricerca semantica, filtri per progetto/tipo, conteggi
 - `classifier` — ⚠️ **DEPRECATED** — `enrich_entry` (summary/tag LLM) rimosso dalla pipeline di indicizzazione, codice preservato
 - `chunker` — parsing HTML TipTap → chunk per heading, max 300 token (cl100k_base / tiktoken)
-- `embedding` — genera embedding vettoriale via Ollama (`nomic-embed-text`, 768 dim)
-- `rag` — costruisce il prompt context e chiama Ollama per la risposta chat
-- `ollama` — HTTP client per Ollama; gestisce preload/unload modelli al lifecycle dell'app
+- `embedding` — thin wrapper: delega a `llm.factory.get_embedding_provider().embed()`
+- `rag` — costruisce il prompt context e chiama il chat provider configurato (via factory)
+- `llm/` — pacchetto provider LLM (pattern Strategy):
+  - `base` — ABC: `EmbeddingProvider`, `ChatProvider`, `ToolChatProvider`
+  - `factory` — `get_embedding_provider()` / `get_chat_provider()` con `lru_cache`; risolve il provider da `settings.llm_provider` / `settings.embedding_provider`
+  - `ollama_provider` — `OllamaEmbeddingProvider`, `OllamaChatProvider`, `preload_models()`, `unload_models()`
+  - `openai_provider` — `OpenAIEmbeddingProvider`, `OpenAIChatProvider`, `GroqChatProvider` (Groq è OpenAI-compatibile)
 
-### Modelli Ollama
-| Modello | Uso |
-|---|---|
-| `qwen2.5:7b` | Generazione risposte RAG chat |
-| `nomic-embed-text` | Embedding vettoriale dei chunk (768 dim) |
+### Modelli LLM
 
-Entrambi vengono pre-caricati all'avvio dell'app (`keep_alive: -1`) e scaricati allo shutdown.
+I modelli dipendono dal provider configurato in `.env`. Default (Ollama locale):
+
+| Modello | Provider | Uso |
+|---|---|---|
+| `qwen2.5:7b` | Ollama | Chat RAG e agente ReAct |
+| `nomic-embed-text` | Ollama | Embedding dei chunk (768 dim) |
+| `gpt-4o-mini` | OpenAI | Chat RAG e agente (alternativa cloud) |
+| `text-embedding-3-small` | OpenAI | Embedding (1536 dim — richiede re-indicizzazione se si cambia da Ollama) |
+| `llama-3.3-70b-versatile` | Groq | Chat RAG e agente (alternativa cloud free tier) |
+
+Con Ollama, entrambi i modelli vengono pre-caricati all'avvio (`keep_alive: -1`) e scaricati allo shutdown. Con provider cloud il preload viene saltato.
+
+### LLM Provider Abstraction
+
+Il layer `app/services/llm/` disaccoppia il resto del codice dal provider LLM concreto:
+
+```
+settings.llm_provider / settings.embedding_provider (.env)
+  └─ factory.py  (get_chat_provider / get_embedding_provider — lru_cache)
+       ├─ OllamaChatProvider / OllamaEmbeddingProvider
+       ├─ OpenAIChatProvider / OpenAIEmbeddingProvider
+       └─ GroqChatProvider (estende OpenAIChatProvider — stessa API)
+```
+
+`LLM_PROVIDER` e `EMBEDDING_PROVIDER` possono essere configurati **indipendentemente** — es. Ollama per gli embedding (gratuito, locale) e Groq per la chat (più veloce). Il resto del codice (`rag.py`, `agent.py`, `embedding.py`) non sa quale provider è attivo.
 
 ## Frontend
 
