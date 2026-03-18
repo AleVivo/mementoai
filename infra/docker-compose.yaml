@@ -1,0 +1,44 @@
+
+# USO DIRETTO (opzionale — il backend avvia MongoDB automaticamente):
+#   docker compose up -d        → avvia MongoDB in background
+#   docker compose stop         → ferma il container (dati preservati)
+#   docker compose down         → ferma e rimuove il container (dati preservati nel volume)
+#   docker compose down -v      → ferma, rimuove container E dati (reset completo)
+#   docker compose logs -f      → segui i log in tempo reale
+#
+# NOTA: Il backend FastAPI avvia e gestisce il container automaticamente
+# tramite app/db/docker_mongo.py. Questo file è utile per:
+#   - Avviare MongoDB senza avviare il backend (es. per usare Compass)
+#   - Reset dei dati con `docker compose down -v`
+#   - Override della configurazione per ambienti specifici
+
+services:
+  mongodb:
+    image: mongodb/mongodb-atlas-local:latest
+    container_name: memento-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGODB_INITDB_ROOT_USERNAME=memento
+      - MONGODB_INITDB_ROOT_PASSWORD=memento
+    volumes:
+      - memento-mongodb-data:/data/db
+      - memento-mongodb-config:/data/configdb
+      - memento-mongot-data:/data/mongot
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+
+# Named volumes — Docker li crea automaticamente se non esistono.
+# I dati sopravvivono a `docker compose down` ma non a `docker compose down -v`.
+volumes:
+  memento-mongodb-data:
+    name: memento-mongodb-data
+  memento-mongodb-config:
+    name: memento-mongodb-config
+  memento-mongot-data:
+    name: memento-mongot-data

@@ -14,8 +14,11 @@ Knowledge base conversazionale per team di sviluppo piccoli. Permette di cattura
 ### Backend
 - [Python 3.13+](https://www.python.org/downloads/)
 - [uv](https://docs.astral.sh/uv/) — package manager Python
+- **MongoDB** con supporto `$vectorSearch` (mongot) — una delle opzioni seguenti:
+  - [MongoDB Atlas](https://www.mongodb.com/atlas) (cloud)
+  - MongoDB locale con mongot configurato
+  - [Docker Desktop](https://www.docker.com/products/docker-desktop/) + `python infra/start.py` — opzione più semplice per lo sviluppo locale (usa `mongodb/mongodb-atlas-local` che include mongot)
 - [Ollama](https://ollama.com/) in esecuzione su `localhost:11434`
-- MongoDB 8.2+ configurato come replica set (richiesto per `$vectorSearch`)
 
 ### Frontend (desktop app)
 - [Node.js 20+](https://nodejs.org/)
@@ -86,7 +89,27 @@ uv legge `pyproject.toml`, crea automaticamente il virtual environment in `.venv
 
 ## Avvio
 
-> Avvia sempre il backend **prima** del frontend.
+> Avvia sempre MongoDB e il backend **prima** del frontend.
+
+### 0. MongoDB
+
+Assicurati di avere un'istanza MongoDB raggiungibile con supporto `$vectorSearch` e configura `MONGODB_URL`, `MONGODB_USER`, `MONGODB_PASSWORD` nel `.env`.
+
+**Opzione sviluppo locale (Docker):** se non hai Atlas o un MongoDB con mongot, usa gli script in `infra/`:
+
+```bash
+python infra/start.py   # avvia il container (pull automatico al primo avvio)
+python infra/stop.py    # ferma il container (dati preservati)
+```
+
+In alternativa con Docker Compose:
+
+```bash
+cd infra
+docker compose up -d     # avvia
+docker compose stop      # ferma (dati preservati)
+docker compose down -v   # reset completo dei dati
+```
 
 ### 1. Backend
 
@@ -102,7 +125,25 @@ L'API è disponibile su:
 - **Swagger UI:** `http://localhost:8000/docs`
 - **ReDoc:** `http://localhost:8000/redoc`
 
-### 2. Frontend (Tauri desktop app)
+### 2. Seed (primo avvio)
+
+Al primo avvio, popola il database con dati di test e crea l'indice vettoriale:
+
+```bash
+python seed.py
+```
+
+| Flag | Descrizione |
+|---|---|
+| _(nessuno)_ | Inserisce dati di test (errore se utente già presente) |
+| `--reset` | Cancella tutto e reinserisce |
+| `--reset --no-user` | Reinserisce solo le entry (utente già presente) |
+
+Credenziali di test: `dev@memento.test` / `memento123` — progetto: `shopflow`.
+
+> `seed.py` crea automaticamente l'indice vettoriale `chunks_vector_index` su MongoDB — non è necessario crearlo manualmente.
+
+### 3. Frontend (Tauri desktop app)
 
 ```bash
 cd ui
@@ -159,6 +200,12 @@ MementoAI/
 │       ├── mongo.py       # Collection entries
 │       ├── users_mongo.py # Collection users
 │       └── chunks_mongo.py # Collection chunks + vector search
+├── infra/                # Script per la gestione del container MongoDB
+│   ├── docker_mongo.py   # Lifecycle container (pull, run, start, stop, health check)
+│   ├── docker-compose.yaml # Compose alternativo per gestione manuale
+│   ├── start.py          # python infra/start.py — avvia il container
+│   └── stop.py           # python infra/stop.py — ferma il container
+├── seed.py               # Popola il DB con dati di test e crea l'indice vettoriale
 ├── ui/                   # Desktop app Tauri v2 + React + TipTap
 │   ├── src/              # Codice React (types, api, store, components)
 │   ├── src-tauri/        # Layer Rust + configurazione Tauri
@@ -214,7 +261,9 @@ Summary e tag dell'entry sono **sempre manuali** — inseriti dall'utente nell'e
 
 ## MongoDB — Vector Search Index
 
-La ricerca vettoriale opera sulla collection **`chunks`** (non `entries`). Creare l'indice una volta dalla shell di MongoDB:
+La ricerca vettoriale opera sulla collection **`chunks`** (non `entries`). L'indice viene creato automaticamente da `seed.py` al primo avvio — non è necessario crearlo manualmente.
+
+Se necessario, è possibile ricrearlo manualmente dalla shell di MongoDB:
 
 ```javascript
 use memento

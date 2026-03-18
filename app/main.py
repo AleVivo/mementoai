@@ -22,7 +22,6 @@ def _needs_ollama() -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("MementoAI starting up...")
-    await users_collection.create_index("email", unique=True)
 
     if _needs_ollama():
         from app.services.llm import ollama_provider
