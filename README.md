@@ -174,32 +174,35 @@ Produce un installer `.exe` standalone in `ui/src-tauri/target/release/bundle/`.
 ```
 MementoAI/
 ├── app/
-│   ├── main.py           # FastAPI entrypoint + lifespan (preload/unload modelli Ollama + indice DB)
+│   ├── main.py           # FastAPI entrypoint + lifespan (preload/unload modelli Ollama)
 │   ├── config.py         # Settings con pydantic-settings (.env)
 │   ├── models/           # Modelli Pydantic (Entry, User, Chunk, VectorStatus, SearchResult...)
 │   ├── routers/          # Endpoint API (entries, search, chat, agent, auth)
 │   ├── dependencies/
 │   │   └── auth.py       # get_current_user — dependency FastAPI per tutti gli endpoint protetti
 │   ├── services/
-│   │   ├── auth.py       # JWT (PyJWT), hashing (pwdlib/argon2), build_token_response
-│   │   ├── llm/          # Pacchetto provider LLM (pattern Strategy)
-│   │   │   ├── base.py           # ABC: EmbeddingProvider, ChatProvider, ToolChatProvider
-│   │   │   ├── factory.py        # get_embedding_provider() / get_chat_provider() — lru_cache
-│   │   │   ├── ollama_provider.py # OllamaEmbeddingProvider, OllamaChatProvider, preload/unload
-│   │   │   └── openai_provider.py # OpenAIEmbeddingProvider, OpenAIChatProvider, GroqChatProvider
-│   │   ├── chunker.py    # HTML chunking: segmentazione per heading, max 300 token/chunk
-│   │   ├── embedding.py  # Thin wrapper → llm.factory.get_embedding_provider().embed()
-│   │   ├── classifier.py # DEPRECATED — enrich_entry (summary/tag LLM) rimosso dalla pipeline
-│   │   ├── rag.py        # Costruzione context + prompt + streaming token via SSE
-│   │   ├── agent.py      # Loop ReAct: ragiona → sceglie tool → esegue → itera fino alla risposta
-│   │   ├── agent_registry.py # Catalogo tool disponibili all'agente (search, filtri, conteggi)
-│   │   ├── chat_service.py
-│   │   ├── search_service.py
-│   │   └── entry_service.py
+│   │   ├── ai/           # Logica AI: RAG, ricerca semantica, agente ReAct
+│   │   │   ├── rag_service.py    # Ricerca chunk + costruzione prompt + streaming SSE
+│   │   │   ├── search_service.py # Embedding query + vector search
+│   │   │   ├── agent.py          # Loop ReAct: ragiona → tool → osserva → risponde
+│   │   │   ├── agent_registry.py # Catalogo tool disponibili all'agente
+│   │   │   └── agent_tools.py    # Implementazione Python dei tool
+│   │   ├── domain/       # Business logic di dominio
+│   │   │   ├── entry_service.py  # CRUD entry + pipeline di indicizzazione
+│   │   │   └── auth_service.py   # JWT, hashing argon2, build_token_response
+│   │   ├── processing/   # Pipeline di trasformazione dati
+│   │   │   ├── chunker.py        # HTML → chunk per heading, max 300 token
+│   │   │   └── embedder.py       # Thin wrapper → llm.factory.get_embedding_provider().embed()
+│   │   └── llm/          # Provider LLM (pattern Strategy)
+│   │       ├── base.py           # ABC: EmbeddingProvider, ChatProvider, ToolChatProvider
+│   │       ├── factory.py        # get_embedding_provider() / get_chat_provider() — lru_cache
+│   │       ├── ollama_provider.py # OllamaEmbeddingProvider, OllamaChatProvider, preload/unload
+│   │       └── openai_provider.py # OpenAIEmbeddingProvider, OpenAIChatProvider, GroqChatProvider
 │   └── db/
-│       ├── mongo.py       # Collection entries
-│       ├── users_mongo.py # Collection users
-│       └── chunks_mongo.py # Collection chunks + vector search
+│       ├── client.py      # Singleton AsyncMongoClient — get_client(), get_db(), close_client()
+│       ├── entry_repository.py   # CRUD collection entries
+│       ├── users_repository.py   # CRUD collection users
+│       └── chunks_repository.py  # insert/delete/vector search collection chunks
 ├── infra/                # Script per la gestione del container MongoDB
 │   ├── docker_mongo.py   # Lifecycle container (pull, run, start, stop, health check)
 │   ├── docker-compose.yaml # Compose alternativo per gestione manuale

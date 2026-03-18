@@ -89,21 +89,29 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 | `vector_status` | `VectorStatus` | `pending` \| `indexed` \| `outdated` |
 
 ### Services
-- `auth` (service) — `hash_password`, `verify_password` (argon2), `create_access_token`, `create_refresh_token`, `decode_*` (PyJWT HS256), `build_token_response`, `user_to_response`
-- `entry_service` — CRUD operations on entries
-- `search_service` — semantic vector search via chunk embeddings
-- `chat_service` — orchestrates search + RAG
+
+Il package `services/` è organizzato in quattro sotto-package per responsabilità:
+
+**`services/ai/`** — logica AI
+- `rag_service` — ricerca chunk + costruzione prompt + streaming SSE; ingloba il vecchio `chat_service`
+- `search_service` — embedding della query + vector search via `chunks_repository`
 - `agent` — loop ReAct: il modello ragiona iterativamente, sceglie un tool dal registry, esegue, osserva il risultato e itera fino alla risposta finale (max `max_steps` iterazioni)
 - `agent_registry` — catalogo dei tool disponibili all'agente: ricerca semantica, filtri per progetto/tipo, conteggi
-- `classifier` — ⚠️ **DEPRECATED** — `enrich_entry` (summary/tag LLM) rimosso dalla pipeline di indicizzazione, codice preservato
+- `agent_tools` — implementazione Python dei tool: `search_semantic`, `filter_entries`, `get_entry`, `count_entries`
+
+**`services/domain/`** — business logic di dominio
+- `entry_service` — CRUD entry + pipeline di indicizzazione (`index_entry`)
+- `auth_service` — `hash_password`, `verify_password` (argon2), `create_access_token`, `create_refresh_token`, `decode_*` (PyJWT HS256), `build_token_response`
+
+**`services/processing/`** — servizi di trasformazione dati
 - `chunker` — parsing HTML TipTap → chunk per heading, max 300 token (cl100k_base / tiktoken)
-- `embedding` — thin wrapper: delega a `llm.factory.get_embedding_provider().embed()`
-- `rag` — costruisce il prompt context e chiama il chat provider configurato (via factory)
-- `llm/` — pacchetto provider LLM (pattern Strategy):
-  - `base` — ABC: `EmbeddingProvider`, `ChatProvider`, `ToolChatProvider`
-  - `factory` — `get_embedding_provider()` / `get_chat_provider()` con `lru_cache`; risolve il provider da `settings.llm_provider` / `settings.embedding_provider`
-  - `ollama_provider` — `OllamaEmbeddingProvider`, `OllamaChatProvider`, `preload_models()`, `unload_models()`
-  - `openai_provider` — `OpenAIEmbeddingProvider`, `OpenAIChatProvider`, `GroqChatProvider` (Groq è OpenAI-compatibile)
+- `embedder` — thin wrapper: delega a `llm.factory.get_embedding_provider().embed()`
+
+**`services/llm/`** — provider LLM (pattern Strategy)
+- `base` — ABC: `EmbeddingProvider`, `ChatProvider`, `ToolChatProvider`
+- `factory` — `get_embedding_provider()` / `get_chat_provider()` con `lru_cache`; risolve il provider da `settings.llm_provider` / `settings.embedding_provider`
+- `ollama_provider` — `OllamaEmbeddingProvider`, `OllamaChatProvider`, `preload_models()`, `unload_models()`
+- `openai_provider` — `OpenAIEmbeddingProvider`, `OpenAIChatProvider`, `GroqChatProvider` (Groq è OpenAI-compatibile)
 
 ### Modelli LLM
 

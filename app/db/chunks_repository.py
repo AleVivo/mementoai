@@ -1,23 +1,22 @@
 from bson import ObjectId
+from bson.errors import InvalidId
 from app.models.chunk import ChunkDocument, ChunkSearchResult
-from app.db.mongo import db
-
-chunks_collection = db["chunks"]
+from app.db.client import get_db
 
 async def insert_chunks(chunks: list[ChunkDocument]) -> None:
     if not chunks:
         return
     
     documents = [chunk.model_dump(by_alias=True, exclude_none=True) for chunk in chunks]
-    await chunks_collection.insert_many(documents)
+    await get_db().chunks.insert_many(documents)
 
 async def delete_chunks_by_entry_id(entry_id: str) -> int:
     try:
         oid = ObjectId(entry_id)
-    except Exception:
+    except InvalidId:
         return 0
     
-    result = await chunks_collection.delete_many({"entry_id": oid})
+    result = await get_db().chunks.delete_many({"entry_id": oid})
     return result.deleted_count
 
 async def vector_search_chunks(
@@ -47,7 +46,7 @@ async def vector_search_chunks(
         },
     ]
 
-    cursor = await chunks_collection.aggregate(pipeline)
+    cursor = await get_db().chunks.aggregate(pipeline)
     docs = await cursor.to_list(length=top_k)
     return [
         ChunkSearchResult(

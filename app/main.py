@@ -2,9 +2,9 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.db.client import close_client, get_client
 from app.routers import entries, search, chat, agent, auth
 from app.config import settings
-from app.db.users_mongo import users_collection
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -22,6 +22,7 @@ def _needs_ollama() -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("MementoAI starting up...")
+    get_client()
 
     if _needs_ollama():
         from app.services.llm import ollama_provider
@@ -41,6 +42,7 @@ async def lifespan(app: FastAPI):
             await ollama_provider.unload_models()
         except Exception:
             pass
+    await close_client()
 
 
 app = FastAPI(title="MementoAI", lifespan=lifespan)

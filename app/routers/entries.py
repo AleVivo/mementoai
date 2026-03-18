@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Query, HTTPException, Response, Depends
 from app.models.entry import EntryResponse, EntryDocument, EntryCreate, EntryUpdate
 from app.models.user import UserResponse
-from app.db import mongo
+from app.db import entry_repository
 from typing import List, Optional
-from app.services import entry_service
+from app.services.domain import entry_service
 from app.dependencies.auth import get_current_user
 
 

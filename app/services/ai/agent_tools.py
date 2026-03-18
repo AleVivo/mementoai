@@ -9,9 +9,9 @@ Ogni funzione delega al codice esistente — nessuna pipeline duplicata:
 """
 
 from typing import Optional
-from app.services import embedding as embedding_service
-from app.db import chunks_mongo, mongo
-from app.db.mongo import entries_collection
+from app.services.processing import embedder
+from app.db import chunks_repository, entry_repository
+from app.db.client import get_db
 
 
 # ---------------------------------------------------------------------------
@@ -37,8 +37,8 @@ async def search_semantic(query: str, limit: int = 5, project: str | None = None
     Returns:
         lista di dict con i campi del chunk + score di similarità
     """
-    embedding = await embedding_service.generate_embedding(query)
-    results = await chunks_mongo.vector_search_chunks(embedding, project, limit)
+    embedded_query = await embedder.generate_embedding(query)
+    results = await chunks_repository.vector_search_chunks(embedded_query, project, limit)
 
     # ChunkSearchResult è un modello Pydantic — lo convertiamo in dict
     # perché l'agente lavorerà con dati JSON-serializzabili.
@@ -72,7 +72,7 @@ async def filter_entries(
     Returns:
         lista di entry serializzate (senza embedding)
     """
-    results = await mongo.get_entries(
+    results = await entry_repository.get_entries(
         project=project,
         entry_type=entry_type,
         week=week,
@@ -99,7 +99,7 @@ async def get_entry(id: str) -> Optional[dict]:
     Returns:
         dict con tutti i campi dell'entry (escluso embedding), None se non trovata
     """
-    result = await mongo.get_entry_by_id(id)
+    result = await entry_repository.get_entry_by_id(id)
     if result is None:
         return None
     return result.model_dump(mode="json", exclude={"embedding"})
@@ -148,7 +148,7 @@ async def count_entries(
         },
     ]
 
-    cursor = await entries_collection.aggregate(pipeline)
+    cursor = await get_db().entries.aggregate(pipeline)
     result = await cursor.to_list(length=1)
 
     if not result:

@@ -8,7 +8,7 @@ Non definisce tool, non definisce mapping — importa tutto dal registry.
 import json
 import logging
 from typing import Optional
-from app.services.agent_registry import TOOLS, TOOL_FUNCTIONS
+from app.services.ai import agent_registry
 from app.services.llm.factory import get_chat_provider
 
 from typing import AsyncGenerator
@@ -80,7 +80,7 @@ async def run_agent_stream(question: str, project: Optional[str] = None, max_ste
 
         async for event in provider.stream_chat_with_tools(
             messages=messages,
-            tools=TOOLS,
+            tools=agent_registry.TOOLS,
             system_prompt=system_prompt,
         ):
             if event["type"] == "token":
@@ -122,7 +122,7 @@ async def run_agent_stream(question: str, project: Optional[str] = None, max_ste
 
             logger.info(f"[agent] Tool call: {tool_name}({tool_args})")
 
-            tool_fn = TOOL_FUNCTIONS.get(tool_name)
+            tool_fn = agent_registry.TOOL_FUNCTIONS.get(tool_name)
             if tool_fn is None:
                 tool_result = {"error": f"Tool '{tool_name}' non trovato"}
                 logger.warning(f"[agent] Unknown tool: {tool_name}")

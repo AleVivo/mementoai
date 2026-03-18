@@ -1,8 +1,11 @@
 import json
 import logging
 import time
+from app.models.chat import ChatRequest
 from app.models.chunk import ChunkSearchResult
-from app.services import ollama
+from app.services.ai import search_service
+from app.services.ai import search_service
+from app.models.search import SearchRequest
 from app.services.llm.factory import get_chat_provider
 from typing import AsyncGenerator
 
@@ -17,7 +20,7 @@ esattamente come appare nel contesto, es. [Titolo della nota].
 Non inventare titoli. Non aggiungere informazioni esterne al contesto.
 Rispondi in italiano."""
 
-def build_context_message(question: str, results: list[ChunkSearchResult]) -> str:
+def _build_context_message(question: str, results: list[ChunkSearchResult]) -> str:
     """
     Costruisce il messaggio USER: solo contesto + domanda.
     Le istruzioni di comportamento sono nel system prompt, non qui.
@@ -44,13 +47,31 @@ def build_context_message(question: str, results: list[ChunkSearchResult]) -> st
     )
 
     return f"CONTESTO:\n{context}\n\nDOMANDA: {question}"
-        
-async def stream_chat_response(
-    question: str,
-    results: list[ChunkSearchResult],
-) -> AsyncGenerator[str, None]:
-    
-    user_message = build_context_message(question, results)
+
+
+async def stream_rag(request: ChatRequest):
+    t0 = time.perf_counter()
+    logger.info(f"[chat] START — question: {request.question!r}, project: {request.project!r}")
+    search_request = SearchRequest(
+        query=request.question,
+        project=request.project or None,
+        top_k=request.top_k,
+    )
+    results = await search_service.search_chunks(search_request)
+    logger.info(f"[chat] Vector search done — {len(results)} chunk(s) retrieved ({time.perf_counter()-t0:.2f}s)")
+
+    sources = [
+        {
+            "entry_id": str(chunk.entry_id),
+            "title": chunk.entry_title,
+            "entry_type": chunk.entry_type,
+            "section": chunk.heading,
+        }
+        for chunk in results
+    ]
+    yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+
+    user_message = _build_context_message(request.question, results)
     provider = get_chat_provider()
 
     async for token in provider.stream_chat(
@@ -60,3 +81,5 @@ async def stream_chat_response(
         yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+    logger.info(f"[chat] STREAM DONE — total time: {time.perf_counter()-t0:.2f}s")

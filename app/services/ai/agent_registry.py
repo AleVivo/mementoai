@@ -16,7 +16,7 @@ TOOLS e TOOL_FUNCTIONS vengono derivati automaticamente da REGISTERED_TOOLS
 
 from dataclasses import dataclass
 from typing import Callable, Any
-from app.services.agent_tools import (
+from app.services.ai.agent_tools import (
     search_semantic,
     filter_entries,
     get_entry,
