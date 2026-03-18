@@ -45,14 +45,12 @@ export interface SearchRequest {
 }
 
 export interface SearchResult {
-  id: string;
-  title: string;
-  content: string;
-  summary: string;
-  author: string;
-  project: string;
+  entry_id: string;
   entry_type: EntryType;
-  tags: string[];
+  entry_title: string;
+  project: string;
+  heading: string | null;
+  text: string;
   score: number;
 }
 

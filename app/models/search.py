@@ -7,12 +7,10 @@ class SearchRequest(BaseModel):
     top_k: int = 5
 
 class SearchResult(BaseModel):
-    id: str
-    title: str
-    summary: str
-    content: str
+    entry_id: str
     entry_type: str
+    entry_title: str
     project: str
-    author: str
-    tags: list[str]
+    heading: Optional[str] = None
+    text: str
     score: float

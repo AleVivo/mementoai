@@ -8,4 +8,16 @@ router = APIRouter()
 
 @router.post("", response_model=list[SearchResult])
 async def search_entries(request: SearchRequest, current_user: UserResponse = Depends(get_current_user)):
-    return await search_service.search_chunks(request)
+    chunks = await search_service.search_chunks(request)
+    return [
+        SearchResult(
+            entry_id=str(chunk.entry_id),
+            entry_type=chunk.entry_type,
+            entry_title=chunk.entry_title,
+            project=chunk.project,
+            heading=chunk.heading,
+            text=chunk.text,
+            score=chunk.score,
+        )
+        for chunk in chunks
+    ]

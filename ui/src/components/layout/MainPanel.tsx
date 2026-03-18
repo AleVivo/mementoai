@@ -7,6 +7,7 @@ import { SearchBar } from "@/components/search/SearchBar";
 import { SearchResults } from "@/components/search/SearchResults";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { useSearch } from "@/hooks/useSearch";
+import { useRef, useEffect } from "react";
 
 export function MainPanel() {
   const { activeEntryId, isSidebarOpen, toggleSidebar, setActiveEntryId, activeProject } = useUIStore();
@@ -15,6 +16,28 @@ export function MainPanel() {
   const { query, setQuery, results, isSearching, clear } = useSearch(activeProject);
 
   const isSearchMode = query.trim().length > 0;
+  const searchWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside or Escape
+  useEffect(() => {
+    if (!isSearchMode) return;
+
+    function handleMouseDown(e: MouseEvent) {
+      if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target as Node)) {
+        clear();
+      }
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") clear();
+    }
+
+    document.addEventListener("mousedown", handleMouseDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleMouseDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSearchMode, clear]);
 
   return (
     <main className="flex flex-col flex-1 min-w-0 h-full">
@@ -30,30 +53,33 @@ export function MainPanel() {
             <TooltipContent>Apri sidebar</TooltipContent>
           </Tooltip>
         )}
-        <div className="flex-1 max-w-sm relative">
+        <div ref={searchWrapperRef} className="flex-1 max-w-sm relative">
           <SearchBar
             value={query}
             onChange={setQuery}
             onClear={clear}
             isSearching={isSearching}
           />
+          {isSearchMode && (
+            <div className="absolute left-0 top-full mt-1 z-50 w-[520px]">
+              <SearchResults
+                results={results}
+                onSelect={(id) => { setActiveEntryId(id); clear(); }}
+              />
+            </div>
+          )}
         </div>
-        {!isSearchMode && (
-          <span className="text-sm text-[var(--text-muted-ui)] truncate flex-1">
-            {activeEntry ? activeEntry.title : ""}
-          </span>
-        )}
-        <ThemeToggle />
+        <span className="text-sm text-[var(--text-muted-ui)] truncate flex-1">
+          {activeEntry ? activeEntry.title : ""}
+        </span>
+        <div className="ml-auto shrink-0">
+          <ThemeToggle />
+        </div>
       </div>
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden flex flex-col">
-        {isSearchMode ? (
-          <SearchResults
-            results={results}
-            onSelect={(id) => { setActiveEntryId(id); clear(); }}
-          />
-        ) : activeEntry ? (
+        {activeEntry ? (
           <div className="max-w-3xl mx-auto px-10 py-10 h-full overflow-y-auto w-full">
             <EntryEditor key={activeEntry.id} entry={activeEntry} />
           </div>
