@@ -10,7 +10,7 @@ Ogni funzione delega al codice esistente — nessuna pipeline duplicata:
 
 from typing import Optional
 from app.services.processing import embedder
-from app.db import chunks_repository, entry_repository
+from app.db.repositories import entry_repository, chunks_repository
 from app.db.client import get_db
 
 
@@ -25,20 +25,9 @@ from app.db.client import get_db
 # da chiamare dall'agente.
 # ---------------------------------------------------------------------------
 
-async def search_semantic(query: str, limit: int = 5, project: str | None = None) -> list[dict]:
-    """
-    Cerca chunk nella knowledge base per significato semantico.
-
-    Args:
-        query:   testo libero della domanda
-        limit:   numero massimo di chunk da restituire (default 5)
-        project: filtra per progetto (opzionale)
-
-    Returns:
-        lista di dict con i campi del chunk + score di similarità
-    """
+async def search_semantic(query: str, limit: int = 5, project_ids: list[str] | None = None) -> list[dict]:
     embedded_query = await embedder.generate_embedding(query)
-    results = await chunks_repository.vector_search_chunks(embedded_query, project, limit)
+    results = await chunks_repository.vector_search_chunks(embedded_query, project_ids, limit)
 
     # ChunkSearchResult è un modello Pydantic — lo convertiamo in dict
     # perché l'agente lavorerà con dati JSON-serializzabili.
@@ -55,25 +44,13 @@ async def search_semantic(query: str, limit: int = 5, project: str | None = None
 # ---------------------------------------------------------------------------
 
 async def filter_entries(
-    project: Optional[str] = None,
+    project_ids: list[str] | None = None,
     entry_type: Optional[str] = None,
     week: Optional[str] = None,
     limit: int = 20,
 ) -> list[dict]:
-    """
-    Filtra entry per campi esatti.
-
-    Args:
-        project:    nome del progetto
-        entry_type: "adr" | "postmortem" | "update"
-        week:       formato YYYY-Www (es. "2026-W10")
-        limit:      max risultati (default 20)
-
-    Returns:
-        lista di entry serializzate (senza embedding)
-    """
     results = await entry_repository.get_entries(
-        project=project,
+        project_ids=project_ids,
         entry_type=entry_type,
         week=week,
         limit=limit,
@@ -89,17 +66,8 @@ async def filter_entries(
 # Delega direttamente a mongo.get_entry_by_id.
 # ---------------------------------------------------------------------------
 
-async def get_entry(id: str) -> Optional[dict]:
-    """
-    Recupera una singola entry completa tramite il suo ID MongoDB.
-
-    Args:
-        id: stringa ObjectId MongoDB
-
-    Returns:
-        dict con tutti i campi dell'entry (escluso embedding), None se non trovata
-    """
-    result = await entry_repository.get_entry_by_id(id)
+async def get_entry(entry_id: str) -> Optional[dict]:
+    result = await entry_repository.get_entry_by_id(entry_id)
     if result is None:
         return None
     return result.model_dump(mode="json", exclude={"embedding"})
@@ -114,7 +82,7 @@ async def get_entry(id: str) -> Optional[dict]:
 # ---------------------------------------------------------------------------
 
 async def count_entries(
-    project: Optional[str] = None,
+    project_ids: list[str] | None = None,
     entry_type: Optional[str] = None,
     week: Optional[str] = None,
 ) -> dict:
@@ -130,10 +98,10 @@ async def count_entries(
         {"total": N, "by_type": {"adr": N, ...}, "by_project": {"X": N, ...}}
     """
     match_stage: dict = {}
-    if project:
-        match_stage["project"] = project
+    if project_ids:
+        match_stage["project_id"] = {"$in": project_ids}
     if entry_type:
-        match_stage["entry_type"] = entry_type  # coerente col tuo campo MongoDB
+        match_stage["entry_type"] = entry_type
     if week:
         match_stage["week"] = week
 
@@ -143,7 +111,7 @@ async def count_entries(
             "$facet": {
                 "total": [{"$count": "count"}],
                 "by_type": [{"$group": {"_id": "$entry_type", "count": {"$sum": 1}}}],
-                "by_project": [{"$group": {"_id": "$project", "count": {"$sum": 1}}}],
+                "by_project": [{"$group": {"_id": "$project_id", "count": {"$sum": 1}}}],
             }
         },
     ]

@@ -81,16 +81,7 @@ REGISTERED_TOOLS: list[ToolDefinition] = [
                         "limit": {
                             "type": "integer",
                             "description": "Numero massimo di risultati (default 5)",
-                        },
-                        "project": {
-                            "type": "string",
-                            "description": (
-                                "Filtra la ricerca per progetto. "
-                                "Se nel contesto attivo è indicato un progetto, "
-                                "usalo qui. Ometti solo se la domanda riguarda "
-                                "esplicitamente tutti i progetti."
-                            ),
-                        },
+                        }
                     },
                     "required": ["query"],
                 },
@@ -117,15 +108,6 @@ REGISTERED_TOOLS: list[ToolDefinition] = [
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "project": {
-                            "type": "string",
-                            "description": (
-                                "Nome del progetto. "
-                                "Se nel contesto attivo è indicato un progetto, "
-                                "usalo qui. Ometti solo se la domanda riguarda "
-                                "esplicitamente tutti i progetti."
-                            ),
-                        },
                         "entry_type": {
                             "type": "string",
                             "enum": ["adr", "postmortem", "update"],
@@ -190,10 +172,6 @@ REGISTERED_TOOLS: list[ToolDefinition] = [
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "project": {
-                            "type": "string",
-                            "description": "Filtra per progetto",
-                        },
                         "entry_type": {
                             "type": "string",
                             "enum": ["adr", "postmortem", "update"],

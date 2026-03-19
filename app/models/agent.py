@@ -8,7 +8,7 @@ class AgentRequest(BaseModel):
         description="La domanda in linguaggio naturale",
         examples=["Quanti ADR abbiamo scritto sul progetto Memento?"],
     )
-    project: Optional[str] = None
+    project_id: Optional[str] = None
     max_steps: int = Field(
         default=5,
         ge=1,   # ge = greater or equal — validazione automatica

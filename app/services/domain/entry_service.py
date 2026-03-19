@@ -1,16 +1,19 @@
 import logging
 from bson import ObjectId
+from fastapi import HTTPException, status
 
 from app.models.entry import EntryDocument, EntryResponse, EntryCreate, EntryUpdate, VectorStatus
-from app.db import chunks_repository, entry_repository
+from app.db.repositories import entry_repository, chunks_repository, project_repository
 from app.mappers import entry_mapper
 from datetime import datetime, timezone
+
+from app.models.user import UserResponse
 from app.services.processing import chunker, embedder
 
 logger = logging.getLogger(__name__)
 
-async def get_entries(project: str | None, entry_type: str | None, week: str | None, limit: int, skip: int) -> list[EntryResponse]:
-    entries = await entry_repository.get_entries(project=project, entry_type=entry_type, week=week, limit=limit, skip=skip)
+async def get_entries(project_id: str | None, entry_type: str | None, week: str | None, limit: int, skip: int) -> list[EntryResponse]:
+    entries = await entry_repository.get_entries(project_ids=[project_id], entry_type=entry_type, week=week, limit=limit, skip=skip)
     return entry_mapper.list_docs_to_responses(entries)
 
 
@@ -19,16 +22,24 @@ async def get_entry_by_id(entry_id: str) -> EntryResponse | None:
     return entry_mapper.doc_to_response(entry) if entry else None
 
 
-async def create_entry(entry: EntryCreate) -> EntryResponse:
+async def create_entry(entry: EntryCreate, current_user: UserResponse) -> EntryResponse:
+    role = await project_repository.get_user_role_in_project(entry.project_id, current_user.id)
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Non sei membro di questo progetto.",
+        )
     now = datetime.now(timezone.utc)
     week = now.strftime("%Y-W%W")
+    author = f"{current_user.first_name} {current_user.last_name}".strip() or current_user.email
 
-    entryDocument = EntryDocument(
+    entry_document = EntryDocument(
         content=entry.content,
         entry_type=entry.entry_type,
         title=entry.title,
-        project=entry.project,
-        author=entry.author,
+        projectId=ObjectId(entry.project_id),
+        authorId=ObjectId(current_user.id),
+        author=author,
         tags=entry.tags or [],
         summary=entry.summary or "",
         created_at=now,
@@ -36,11 +47,19 @@ async def create_entry(entry: EntryCreate) -> EntryResponse:
         vector_status=VectorStatus.pending,
     )
 
-    saved = await entry_repository.create_entry(entryDocument)
+    saved = await entry_repository.create_entry(entry_document)
     return entry_mapper.doc_to_response(saved)
 
 
-async def update_entry(entry_id: str, update: EntryUpdate) -> EntryResponse | None:
+async def update_entry(entry_id: str, update: EntryUpdate, current_user: UserResponse) -> EntryResponse | None:
+    # Verifica membership
+    role = await project_repository.get_user_role_in_project(entry_id, current_user.id)
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Non sei membro di questo progetto.",
+        )
+
     existing = await entry_repository.get_entry_by_id(entry_id)
     if not existing:
         return None
@@ -53,7 +72,15 @@ async def update_entry(entry_id: str, update: EntryUpdate) -> EntryResponse | No
     return entry_mapper.doc_to_response(updated) if updated else None
 
 
-async def index_entry(entry_id: str) -> EntryResponse | None:
+async def index_entry(entry_id: str, current_user: UserResponse) -> EntryResponse | None:
+    # Verifica membership
+    role = await project_repository.get_user_role_in_project(entry_id, current_user.id)
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Non sei membro di questo progetto.",
+        )
+
     logger.info(f"[index] START entry_id={entry_id}")
 
     existing = await entry_repository.get_entry_by_id(entry_id)
@@ -74,7 +101,7 @@ async def index_entry(entry_id: str) -> EntryResponse | None:
     raw_chunks = chunker.chunk_html(
         content=existing.content,
         entry_id=ObjectId(entry_id),
-        project=existing.project,
+        project_id=str(existing.projectId),
         entry_type=existing.entry_type,
         entry_title=existing.title,
         created_at=existing.created_at,
@@ -95,6 +122,14 @@ async def index_entry(entry_id: str) -> EntryResponse | None:
     return entry_mapper.doc_to_response(updated) if updated else None
 
 
-async def delete_entry(entry_id: str) -> bool:
+async def delete_entry(entry_id: str, current_user: UserResponse) -> bool:
+    # Verifica membership
+    role = await project_repository.get_user_role_in_project(entry_id, current_user.id)
+    if not role:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Non sei membro di questo progetto.",
+        )
+
     await chunks_repository.delete_chunks_by_entry_id(entry_id)
     return await entry_repository.delete_entry_by_id(entry_id)

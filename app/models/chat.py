@@ -3,5 +3,5 @@ from pydantic import BaseModel
 
 class ChatRequest(BaseModel):
     question: str
-    project: Optional[str] = None
+    project_id: Optional[str] = None
     top_k: int = 5
