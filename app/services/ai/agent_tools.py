@@ -12,6 +12,7 @@ from typing import Optional
 from app.services.processing import embedder
 from app.db.repositories import entry_repository, chunks_repository
 from app.db.client import get_db
+from app.mappers import entry_mapper
 
 
 # ---------------------------------------------------------------------------
@@ -57,7 +58,7 @@ async def filter_entries(
         skip=0,
     )
 
-    return [r.model_dump(mode="json", exclude={"embedding"}) for r in results]
+    return [entry_mapper.doc_to_response(r).model_dump(mode="json") for r in results]
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +71,7 @@ async def get_entry(entry_id: str) -> Optional[dict]:
     result = await entry_repository.get_entry_by_id(entry_id)
     if result is None:
         return None
-    return result.model_dump(mode="json", exclude={"embedding"})
+    return entry_mapper.doc_to_response(result).model_dump(mode="json")
 
 
 # ---------------------------------------------------------------------------

@@ -33,7 +33,7 @@ async def vector_search_chunks(request: SearchRequest, current_user: UserRespons
     logger.info(f"[search] Generating embedding for query: {request.query!r}")
     t0 = time.perf_counter()
     embedded_query = await embedder.generate_embedding(request.query)
-    logger.info(f"[search] Embedding done ({time.perf_counter()-t0:.2f}s) — running vector search (top_k={request.top_k}, project={request.project!r})")
+    logger.info(f"[search] Embedding done ({time.perf_counter()-t0:.2f}s) — running vector search (top_k={request.top_k}, project={project_ids!r})")
 
     t1 = time.perf_counter()
     results = await chunks_repository.vector_search_chunks(

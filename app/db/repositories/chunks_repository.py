@@ -34,7 +34,7 @@ async def vector_search_chunks(
     }
 
     if project_ids:
-        inner["filter"] = {"project_ids": {"$eq": project_ids}}
+        inner["filter"] = {"project_id": {"$in": project_ids}}
 
     pipeline = [
         {"$vectorSearch": inner},
@@ -56,7 +56,7 @@ async def vector_search_chunks(
             heading=r.get("heading"),
             text=r["text"],
             score=r["score"],
-            project_id=r["project"],
+            project_id=r["project_id"],
             entry_type=r["entry_type"],
             entry_title=r["entry_title"],
         )

@@ -259,6 +259,25 @@ ENTRY_TEMPLATES = [
 VECTOR_INDEX_NAME = "chunks_vector_index"
 EMBEDDING_DIMENSIONS = 768
 
+async def drop_vector_index(db) -> None:
+    existing_names: list[str] = []
+    try:
+        cursor = await db.chunks.list_search_indexes()
+        async for idx in cursor:
+            existing_names.append(idx.get("name", ""))
+    except Exception:
+        return  # collection non esiste ancora — nulla da eliminare
+
+    if VECTOR_INDEX_NAME not in existing_names:
+        return
+
+    try:
+        await db.command("dropSearchIndex", "chunks", name=VECTOR_INDEX_NAME)
+        print(f"🗑  Indice vettoriale '{VECTOR_INDEX_NAME}' eliminato")
+    except Exception as e:
+        print(f"⚠️  Impossibile eliminare l'indice: {e}")
+
+
 async def ensure_vector_index(db) -> None:
     try:
         await db.create_collection("chunks")
@@ -285,8 +304,8 @@ async def ensure_vector_index(db) -> None:
                     "numDimensions": EMBEDDING_DIMENSIONS,
                     "similarity": "cosine",
                 },
-                # Filtro per project scope (ObjectId)
-                {"type": "filter", "path": "projectId"},
+                # Filtro per project scope (ObjectId stringificato)
+                {"type": "filter", "path": "project_id"},
                 {"type": "filter", "path": "entry_type"},
             ]
         },
@@ -331,6 +350,7 @@ async def seed(reset: bool = False, skip_user: bool = False) -> None:
             for coll in ("entries", "chunks", "projects", "project_members"):
                 r = await db[coll].delete_many({})
                 print(f"🗑  Cancellati {r.deleted_count} documenti da '{coll}'")
+            await drop_vector_index(db)
             print()
 
         # ── Utenti ───────────────────────────────────────────────────────────
