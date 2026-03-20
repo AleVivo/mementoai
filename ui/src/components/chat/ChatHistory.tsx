@@ -6,10 +6,10 @@ import { MementoLoader } from "@/components/loader";
 
 interface Props {
   messages: ChatMessageType[];
-  activeProject: string | null;
+  activeProjectId: string | null;
 }
 
-export function ChatHistory({ messages, activeProject }: Props) {
+export function ChatHistory({ messages, activeProjectId }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastMessage = messages[messages.length - 1];
   const lastContent = lastMessage?.content ?? "";
@@ -24,7 +24,7 @@ export function ChatHistory({ messages, activeProject }: Props) {
       {messages.length === 0 ? (
         <p className="text-xs text-[var(--text-muted-ui)] text-center mt-8">
           Fai una domanda sulla knowledge base
-          {activeProject ? ` del progetto "${activeProject}"` : ""}.
+          {activeProjectId ? " del progetto selezionato" : ""}.
         </p>
       ) : (
         <div className="flex flex-col gap-3">

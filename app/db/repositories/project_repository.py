@@ -12,7 +12,7 @@ from app.models.project import ProjectDocument
 # ─── Projects ────────────────────────────────────────────────────────────────
 
 async def create_project(doc: ProjectDocument) -> ProjectDocument:
-    document = doc.model_dump(by_alias=True, exclude_none=True)
+    document = doc.model_dump(by_alias=True, exclude_none=True, exclude={"id"})
     result = await get_db().projects.insert_one(document)
     saved = await get_db().projects.find_one({"_id": result.inserted_id})
     return ProjectDocument.model_validate(saved)
@@ -63,6 +63,7 @@ async def get_user_role_in_project(project_id: str, user_id: str) -> Optional[st
         u_oid = ObjectId(user_id)
     except InvalidId:
         return None
+    print(p_oid, u_oid)
     doc = await get_db().project_members.find_one({"projectId": p_oid, "userId": u_oid})
     return doc["role"] if doc else None
 

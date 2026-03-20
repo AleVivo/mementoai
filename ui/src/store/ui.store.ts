@@ -9,7 +9,7 @@ interface UIState {
   isIndexing: boolean;
   isChatOpen: boolean;
   isSidebarOpen: boolean;
-  activeProject: string | null;
+  activeProjectId: string | null;
   isNewEntryOpen: boolean;
   chatMode: ChatMode;
 
@@ -19,7 +19,7 @@ interface UIState {
   setIndexing: (indexing: boolean) => void;
   toggleChat: () => void;
   toggleSidebar: () => void;
-  setActiveProject: (project: string | null) => void;
+  setActiveProjectId: (id: string | null) => void;
   setNewEntryOpen: (open: boolean) => void;
   setChatMode: (mode: ChatMode) => void;
 }
@@ -31,7 +31,7 @@ export const useUIStore = create<UIState>((set) => ({
   isIndexing: false,
   isChatOpen: false,
   isSidebarOpen: true,
-  activeProject: null,
+  activeProjectId: null,
   isNewEntryOpen: false,
   chatMode: "rag",
 
@@ -41,7 +41,7 @@ export const useUIStore = create<UIState>((set) => ({
   setIndexing: (indexing) => set({ isIndexing: indexing }),
   toggleChat: () => set((s) => ({ isChatOpen: !s.isChatOpen })),
   toggleSidebar: () => set((s) => ({ isSidebarOpen: !s.isSidebarOpen })),
-  setActiveProject: (project) => set({ activeProject: project }),
+  setActiveProjectId: (id) => set({ activeProjectId: id }),
   setNewEntryOpen: (open) => set({ isNewEntryOpen: open }),
   setChatMode: (mode) => set({ chatMode: mode }),
 }));

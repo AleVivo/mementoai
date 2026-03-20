@@ -13,7 +13,7 @@ from app.services.processing import chunker, embedder
 logger = logging.getLogger(__name__)
 
 async def get_entries(project_id: str | None, entry_type: str | None, week: str | None, limit: int, skip: int) -> list[EntryResponse]:
-    entries = await entry_repository.get_entries(project_ids=[project_id], entry_type=entry_type, week=week, limit=limit, skip=skip)
+    entries = await entry_repository.get_entries(project_ids=[project_id] if project_id else None, entry_type=entry_type, week=week, limit=limit, skip=skip)
     return entry_mapper.list_docs_to_responses(entries)
 
 
@@ -53,7 +53,13 @@ async def create_entry(entry: EntryCreate, current_user: UserResponse) -> EntryR
 
 async def update_entry(entry_id: str, update: EntryUpdate, current_user: UserResponse) -> EntryResponse | None:
     # Verifica membership
-    role = await project_repository.get_user_role_in_project(entry_id, current_user.id)
+    entry = await entry_repository.get_entry_by_id(entry_id)
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Entry not found.",
+        )
+    role = await project_repository.get_user_role_in_project(str(entry.projectId), current_user.id)
     if not role:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -74,7 +80,13 @@ async def update_entry(entry_id: str, update: EntryUpdate, current_user: UserRes
 
 async def index_entry(entry_id: str, current_user: UserResponse) -> EntryResponse | None:
     # Verifica membership
-    role = await project_repository.get_user_role_in_project(entry_id, current_user.id)
+    entry = await entry_repository.get_entry_by_id(entry_id)
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Entry not found.",
+        )
+    role = await project_repository.get_user_role_in_project(str(entry.projectId), current_user.id)
     if not role:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -124,7 +136,13 @@ async def index_entry(entry_id: str, current_user: UserResponse) -> EntryRespons
 
 async def delete_entry(entry_id: str, current_user: UserResponse) -> bool:
     # Verifica membership
-    role = await project_repository.get_user_role_in_project(entry_id, current_user.id)
+    entry = await entry_repository.get_entry_by_id(entry_id)
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Entry not found.",
+        )
+    role = await project_repository.get_user_role_in_project(str(entry.projectId), current_user.id)
     if not role:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

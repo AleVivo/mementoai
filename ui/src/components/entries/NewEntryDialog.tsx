@@ -19,29 +19,28 @@ import { Plus } from "lucide-react";
 import { createEntry } from "@/api/entries";
 import { useEntriesStore } from "@/store/entries.store";
 import { useUIStore } from "@/store/ui.store";
+import { useProjectsStore } from "@/store/projects.store";
 import type { EntryType } from "@/types";
 
 interface NewEntryDialogProps {
-  /** Pre-fill the project field (e.g. from active project) */
-  defaultProject?: string;
+  /** The project_id to create the entry in */
+  projectId: string;
 }
 
-export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
+export function NewEntryDialog({ projectId }: NewEntryDialogProps) {
   const [title, setTitle] = useState("");
   const [entryType, setEntryType] = useState<EntryType>("adr");
-  const [project, setProject] = useState(defaultProject);
-  const [author, setAuthor] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const { upsertEntry } = useEntriesStore();
   const { setActiveEntryId, isNewEntryOpen, setNewEntryOpen } = useUIStore();
+  const projects = useProjectsStore((s) => s.projects);
+  const projectName = projects.find((p) => p.id === projectId)?.name ?? projectId;
 
   function reset() {
     setTitle("");
     setEntryType("adr");
-    setProject(defaultProject);
-    setAuthor("");
     setError(null);
   }
 
@@ -52,8 +51,8 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !project.trim() || !author.trim()) {
-      setError("Titolo, progetto e autore sono obbligatori.");
+    if (!title.trim()) {
+      setError("Il titolo è obbligatorio.");
       return;
     }
     setIsSubmitting(true);
@@ -63,8 +62,7 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
         title: title.trim(),
         content: "",
         entry_type: entryType,
-        project: project.trim(),
-        author: author.trim(),
+        project_id: projectId,
       });
       upsertEntry(created);
       setActiveEntryId(created.id);
@@ -119,24 +117,12 @@ export function NewEntryDialog({ defaultProject = "" }: NewEntryDialogProps) {
             </Select>
           </div>
 
-          {/* Project */}
+          {/* Project (read-only) */}
           <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[var(--text-muted-ui)]">Progetto *</label>
-            <Input
-              placeholder="es. backend"
-              value={project}
-              onChange={(e) => setProject(e.target.value)}
-            />
-          </div>
-
-          {/* Author */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-[var(--text-muted-ui)]">Autore *</label>
-            <Input
-              placeholder="es. mario.rossi"
-              value={author}
-              onChange={(e) => setAuthor(e.target.value)}
-            />
+            <label className="text-xs font-medium text-[var(--text-muted-ui)]">Progetto</label>
+            <p className="text-sm text-foreground px-3 py-2 rounded-md bg-[var(--bg-subtle)] border border-[var(--border-ui)]">
+              {projectName}
+            </p>
           </div>
 
           {error && <p className="text-xs text-red-500">{error}</p>}

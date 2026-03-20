@@ -1,7 +1,6 @@
 from typing import List
 
-from fastapi import APIRouter
-from fastapi.params import Depends
+from fastapi import APIRouter, Depends
 from starlette import status
 
 from app.dependencies.auth import get_current_user

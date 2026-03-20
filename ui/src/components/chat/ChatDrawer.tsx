@@ -1,5 +1,6 @@
 import { X } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
+import { useProjectsStore } from "@/store/projects.store";
 import { Separator } from "@/components/ui/separator";
 import { Drawer, DrawerContent } from "@/components/ui/drawer";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,8 +9,11 @@ import { ChatHistory } from "./ChatHistory";
 import { ChatInput } from "./ChatInput";
 
 export function ChatDrawer() {
-  const { isChatOpen, toggleChat, activeProject, chatMode, setChatMode } = useUIStore();
+  const { isChatOpen, toggleChat, activeProjectId, chatMode, setChatMode } = useUIStore();
+  const projects = useProjectsStore((s) => s.projects);
   const { projectMessages, isWaiting, send } = useChat();
+
+  const activeProjectName = projects.find((p) => p.id === activeProjectId)?.name ?? null;
 
   return (
     <Drawer
@@ -22,7 +26,7 @@ export function ChatDrawer() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-ui)] shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-foreground">
-              {activeProject ? `Chat · ${activeProject}` : "Chat · Tutto"}
+              {activeProjectName ? `Chat · ${activeProjectName}` : "Chat · Tutto"}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -44,7 +48,7 @@ export function ChatDrawer() {
         <div className="flex-1 min-h-0 overflow-hidden">
           <ChatHistory
             messages={projectMessages}
-            activeProject={activeProject}
+            activeProjectId={activeProjectId}
           />
         </div>
         <Separator />

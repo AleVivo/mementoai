@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime, timezone
 
+from bson import ObjectId
 from fastapi import HTTPException, status
 from pymongo.errors import DuplicateKeyError
 
@@ -14,11 +15,12 @@ logger = logging.getLogger(__name__)
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _build_response(doc: ProjectDocument, role: str) -> ProjectResponse:
+    assert doc.id is not None, "ProjectDocument must have an id"
     return ProjectResponse(
-        _id=doc.id,
+        id=str(doc.id),
         name=doc.name,
         description=doc.description,
-        ownerId=doc.ownerId,
+        ownerId=str(doc.ownerId),
         createdAt=doc.createdAt,
         currentUserRole=role,
     )
@@ -29,10 +31,10 @@ async def get_projects(current_user: UserResponse) -> list[ProjectResponse]:
     docs = await project_repository.get_projects_with_role_for_user(current_user.id)
     return [
         ProjectResponse(
-            _id=doc["_id"],
+            id=str(doc["_id"]),
             name=doc["name"],
             description=doc.get("description"),
-            ownerId=doc["ownerId"],
+            ownerId=str(doc["ownerId"]),
             createdAt=doc["createdAt"],
             currentUserRole=doc["currentUserRole"],
         )
@@ -43,7 +45,7 @@ async def create_project(data: ProjectCreate, current_user: UserResponse) -> Pro
     doc = ProjectDocument(
         name=data.name,
         description=data.description,
-        ownerId=current_user.id,
+        ownerId=ObjectId(current_user.id),
         createdAt=datetime.now(timezone.utc),
     )
     try:

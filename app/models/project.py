@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 from bson import ObjectId
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.types import PyObjectId
 
@@ -16,26 +16,26 @@ class ProjectUpdate(BaseModel):
     description: Optional[str] = None
 
 class ProjectDocument(BaseModel):
-    id: PyObjectId = Field(alias="_id")
+    id: Optional[PyObjectId] = Field(default=None, alias="_id")
     name: str
     description: Optional[str] = None
-    ownerId: ObjectId
+    ownerId: PyObjectId
     createdAt: datetime
 
     model_config = {"populate_by_name": True, "arbitrary_types_allowed": True}
 
 class ProjectResponse(BaseModel):
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    id: str
     name: str
     description: Optional[str] = None
-    ownerId: PyObjectId = Field(default_factory=PyObjectId)
+    ownerId: str
     createdAt: datetime
     currentUserRole: str
 
-    model_config = {"populate_by_name": True, "arbitrary_types_allowed": True}
+    model_config = {"arbitrary_types_allowed": True}
 
 class MemberResponse(BaseModel):
-    userId: PyObjectId = Field(default_factory=PyObjectId)
+    userId: str
     email: str
     firstName: str
     lastName: str
@@ -45,9 +45,9 @@ class MemberResponse(BaseModel):
     model_config = {"populate_by_name": True, "arbitrary_types_allowed": True}
 
 class ProjectMemberDocument(BaseModel):
-    id: PyObjectId = Field(alias="_id")
-    projectId: ObjectId
-    userId: ObjectId
+    id: Optional[PyObjectId] = Field(default=None, alias="_id")
+    projectId: PyObjectId
+    userId: PyObjectId
     role: str
     addedAt: datetime
 

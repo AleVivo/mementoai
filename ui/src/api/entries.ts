@@ -1,8 +1,8 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "./client";
 import type { Entry, EntryCreate, EntryUpdate } from "../types";
 
-export const getEntries = (project?: string) => {
-  const qs = project ? `?project=${encodeURIComponent(project)}` : "";
+export const getEntries = (project_id?: string) => {
+  const qs = project_id ? `?project_id=${encodeURIComponent(project_id)}` : "";
   return apiGet<Entry[]>(`/entries${qs}`);
 };
 

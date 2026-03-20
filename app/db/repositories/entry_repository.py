@@ -21,7 +21,7 @@ async def get_entries(
     query: dict = {}
     if project_ids:
         oids = [ObjectId(pid) for pid in project_ids]
-        query["project_id"] = {"$in": oids} if len(oids) > 1 else oids[0]
+        query["projectId"] = {"$in": oids} if len(oids) > 1 else oids[0]
     if entry_type:
         query["entry_type"] = entry_type
     if week:

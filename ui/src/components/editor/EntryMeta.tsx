@@ -8,18 +8,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useUIStore } from "@/store/ui.store";
+import { useProjectsStore } from "@/store/projects.store";
 import type { Entry, EntryType } from "@/types";
 
 interface EntryMetaProps {
   entry: Entry;
   title: string;
   entryType: EntryType;
-  author: string;
   tags: string[];
   summary: string;
   onTitleChange: (v: string) => void;
   onTypeChange: (v: EntryType) => void;
-  onAuthorChange: (v: string) => void;
   onTagsChange: (v: string[]) => void;
   onSummaryChange: (v: string) => void;
 }
@@ -28,16 +27,16 @@ export function EntryMeta({
   entry,
   title,
   entryType,
-  author,
   tags,
   summary,
   onTitleChange,
   onTypeChange,
-  onAuthorChange,
   onTagsChange,
   onSummaryChange,
 }: EntryMetaProps) {
   const { isSaving, isIndexing } = useUIStore();
+  const projects = useProjectsStore((s) => s.projects);
+  const projectName = projects.find((p) => p.id === entry.projectId)?.name ?? entry.projectId;
   const [showIndexed, setShowIndexed] = useState(false);
   const [tagInput, setTagInput] = useState("");
   const tagInputRef = useRef<HTMLInputElement>(null);
@@ -131,16 +130,11 @@ export function EntryMeta({
           </SelectContent>
         </Select>
 
-        <input
-          className="text-sm text-[var(--text-muted-ui)] bg-transparent border-none outline-none placeholder:text-[var(--text-muted-ui)]"
-          placeholder="Autore"
-          value={author}
-          onChange={(e) => onAuthorChange(e.target.value)}
-        />
+        <span className="text-sm text-[var(--text-muted-ui)]">{entry.author}</span>
 
         <span className="text-[var(--border-ui)]">·</span>
 
-        <span className="text-sm text-[var(--text-muted-ui)]">{entry.project}</span>
+        <span className="text-sm text-[var(--text-muted-ui)]">{projectName}</span>
 
         {statusEl && <span className="ml-auto">{statusEl}</span>}
       </div>

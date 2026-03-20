@@ -4,20 +4,24 @@ import { useEntriesStore } from "@/store/entries.store";
 import { getEntries } from "@/api/entries";
 
 export function useEntries() {
-  const activeProject = useUIStore((s) => s.activeProject);
+  const activeProjectId = useUIStore((s) => s.activeProjectId);
   const { setEntries, setLoading } = useEntriesStore();
 
   const refetch = useCallback(async () => {
+    if (!activeProjectId) {
+      setEntries([]);
+      return;
+    }
     setLoading(true);
     try {
-      const data = await getEntries(activeProject ?? undefined);
+      const data = await getEntries(activeProjectId);
       setEntries(data);
     } catch (err) {
       console.error("Failed to fetch entries:", err);
     } finally {
       setLoading(false);
     }
-  }, [activeProject, setEntries, setLoading]);
+  }, [activeProjectId, setEntries, setLoading]);
 
   useEffect(() => {
     refetch();

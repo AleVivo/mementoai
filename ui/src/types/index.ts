@@ -7,8 +7,9 @@ export interface Entry {
   title: string;
   content: string;
   entry_type: EntryType;
-  author: string;
-  project: string;
+  author: string;      // display name — read-only, derived from authorId
+  authorId: string;
+  projectId: string;
   tags: string[];
   summary: string;
   vector_status: VectorStatus;
@@ -20,8 +21,7 @@ export interface EntryCreate {
   title: string;
   content: string;
   entry_type: EntryType;
-  author: string;
-  project: string;
+  project_id: string;
   tags?: string[];
   summary?: string;
 }
@@ -30,8 +30,6 @@ export interface EntryUpdate {
   title?: string;
   content?: string;
   entry_type?: EntryType;
-  author?: string;
-  project?: string;
   tags?: string[];
   summary?: string;
 }
@@ -40,7 +38,7 @@ export interface EntryUpdate {
 
 export interface SearchRequest {
   query: string;
-  project?: string;
+  project_id?: string;
   top_k?: number;
 }
 
@@ -48,7 +46,7 @@ export interface SearchResult {
   entry_id: string;
   entry_type: EntryType;
   entry_title: string;
-  project: string;
+  project_id: string;
   heading: string | null;
   text: string;
   score: number;
@@ -67,7 +65,7 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   question: string;
-  project?: string;
+  project_id?: string;
 }
 
 export interface ChatSource {
@@ -86,8 +84,8 @@ export type SSEEvent =
 
 // #### AGENT TYPES ####
 export interface AgentRequest {
-  question: string; 
-  project?: string; 
+  question: string;
+  project_id?: string;
 }
 
 export interface AgentStep {
@@ -102,6 +100,36 @@ export type AgentSSEEvent =
   | { type: 'step';      tool: string; args: Record<string, unknown>; result: unknown }
   | { type: 'done';      steps: AgentStep[]; model: string }
   | { type: 'error';     message: string };
+
+// #### PROJECT TYPES ####
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  ownerId: string;
+  createdAt: string;
+  currentUserRole: string;
+}
+
+export interface ProjectCreate {
+  name: string;
+  description?: string;
+}
+
+export interface ProjectUpdate {
+  name?: string;
+  description?: string;
+}
+
+export interface ProjectMember {
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  addedAt: string;
+}
 
 // #### AUTH TYPES ####
 

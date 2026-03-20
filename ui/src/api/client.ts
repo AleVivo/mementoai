@@ -59,6 +59,10 @@ async function request<T>(
     throw new Error(`${method} ${path} → ${response.status}: ${text}`);
   }
 
+  if (response.status === 204 || response.headers.get("content-length") === "0") {
+    return undefined as T;
+  }
+
   return response.json() as Promise<T>;
 }
 

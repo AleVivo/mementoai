@@ -21,7 +21,7 @@ export function useSearch(project?: string | null) {
       try {
         const data = await searchEntries({
           query: trimmed,
-          project: project ?? undefined,
+          project_id: project ?? undefined,
           top_k: 10,
         });
         setResults(data);
