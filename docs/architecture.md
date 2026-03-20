@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-17
+last_updated: 2026-03-20
 ---
 
 # MementoAI — Architecture
@@ -35,6 +35,15 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 │  POST /auth/register     ← registrazione utente               │  
 |  POST /auth/login        ← login → JWT access                 |
 |  POST /auth/refresh      ← rinnovo token (token rotation)     |
+│  GET  /projects          ← lista progetti dell'utente          │
+│  POST /projects          ← crea progetto                       │
+│  GET  /projects/:id      ← dettaglio progetto                  │
+│  PUT  /projects/:id      ← aggiorna progetto                   │
+│  DELETE /projects/:id    ← elimina progetto                    │
+│  GET  /projects/:id/members    ← lista membri                  │
+│  POST /projects/:id/members    ← aggiungi membro               │
+│  DELETE /projects/:id/members/:userId ← rimuovi membro        │
+│  GET  /users/search      ← ricerca utente per email (lookup)   │
 │  POST /entries          ← create entry                        │
 │  GET  /entries          ← list entries (filter)               │
 │  GET  /entries/:id      ← get single entry                    │
@@ -78,15 +87,33 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 | `id` | `str` | MongoDB ObjectId |
 | `entry_type` | `EntryType` | `adr` \| `postmortem` \| `update` |
 | `title` | `str` | Document title |
-| `project` | `str` | Project/team namespace |
-| `author` | `str` | Author name |
-| `content` | `str` | Full markdown content |
-| `summary` | `str` | AI-generated summary |
+| `projectId` | `ObjectId` | Riferimento al progetto (collection `projects`) |
+| `authorId` | `ObjectId` | Riferimento all'utente autore (collection `users`) |
+| `author` | `str` | Nome visualizzato dell'autore (copiato al momento della creazione) |
+| `content` | `str` | Full HTML content (TipTap) |
+| `summary` | `str` | Summary manuale |
 | `tags` | `list[str]` | Classification tags |
-| `embedding` | `list[float]` | Vector embedding (stored, not exposed) |
 | `created_at` | `datetime` | Creation timestamp |
 | `week` | `str` | ISO week string (e.g. `2026-W10`) |
 | `vector_status` | `VectorStatus` | `pending` \| `indexed` \| `outdated` |
+
+**Project** — namespace organizzativo:
+| Field | Type | Description |
+|---|---|---|
+| `id` | `str` | MongoDB ObjectId |
+| `name` | `str` | Nome univoco del progetto |
+| `description` | `str` | Descrizione opzionale |
+| `ownerId` | `ObjectId` | Utente che ha creato il progetto |
+| `createdAt` | `datetime` | Timestamp di creazione |
+
+**ProjectMember** — appartenenza utente–progetto:
+| Field | Type | Description |
+|---|---|---|
+| `id` | `str` | MongoDB ObjectId |
+| `projectId` | `ObjectId` | Riferimento al progetto |
+| `userId` | `ObjectId` | Riferimento all'utente membro |
+| `role` | `str` | `owner` \| `member` |
+| `addedAt` | `datetime` | Timestamp di aggiunta |
 
 ### Services
 
@@ -151,7 +178,9 @@ See [frontend-spec.md](./frontend-spec.md) for full detail.
 
 ### Strategia
 
-Autenticazione **stateless JWT** con token rotation. Nessun RBAC per ora — tutti gli utenti autenticati hanno accesso in lettura/scrittura all'intera knowledge base. Il RBAC verrà implementato in uno sprint successivo.
+Autenticazione **stateless JWT** con token rotation. Accesso alle entry e alle funzioni AI è **project-scoped**: un utente può accedere solo ai progetti di cui è membro (come `owner` o `member`). I ruoli sono gestiti dalla collection `project_members`.
+
+L'owner di un progetto può invitare altri utenti (ricerca per email via `GET /users/search`) e rimuoverli. L'owner non può essere rimosso finché è l'unico membro.
 
 ### Token
 
@@ -193,7 +222,9 @@ Access token scaduto → POST /auth/refresh { refresh_token }
 | `POST /auth/register` | ❌ pubblico |
 | `POST /auth/login` | ❌ pubblico |
 | `POST /auth/refresh` | ❌ pubblico |
-| Tutti gli altri (`/entries`, `/search`, `/chat`, `/agent`) | ✅ Bearer token |
+| `GET /users/search` | ✅ Bearer token |
+| `GET/POST/PUT/DELETE /projects` e `/projects/:id/*` | ✅ Bearer token + membership check |
+| Tutti gli altri (`/entries`, `/search`, `/chat`, `/agent`) | ✅ Bearer token + membership check |
 
 ### Frontend
 
@@ -219,7 +250,9 @@ POST /auth/login { email, password }
 
 ### Create Entry
 ```
-POST /entries { content, entry_type, title, project, author }
+POST /entries { content, entry_type, title, project_id }
+  → project_id: ObjectId del progetto (membership verificata)
+  → author ricavato dal token JWT (authorId + nome display)
   → Stored in MongoDB with vector_status = "pending"
   → Response: EntryResponse (fast, no LLM)
   → UI: entry aperta nell'editor, indicatore "⚠ Not indexed"

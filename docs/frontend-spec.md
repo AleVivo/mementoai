@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-14
+last_updated: 2026-03-20
 ---
 
 # MementoAI — Frontend Specification
@@ -27,25 +27,30 @@ last_updated: 2026-03-14
 ui/                          ← Tauri frontend root
 ├── src/
 │   ├── main.tsx             ← React entry point
-│   ├── App.tsx              ← Root layout (sidebar + main panel)
+│   ├── App.tsx              ← Root layout (sidebar + main panel) + auth gate
 │   ├── api/
-│   │   ├── client.ts        ← Base fetch wrapper (baseURL = localhost:8000)
+│   │   ├── client.ts        ← Base fetch wrapper (baseURL = localhost:8000, JWT inject, refresh silenzioso)
 │   │   ├── entries.ts       ← /entries API calls
+│   │   ├── projects.ts      ← /projects API calls (CRUD + member management)
+│   │   ├── users.ts         ← /users/search API call (lookup per email)
 │   │   ├── search.ts        ← /search API calls
 │   │   └── chat.ts          ← /chat e /agent API calls
 │   ├── components/
 │   │   ├── layout/
-│   │   │   ├── Sidebar.tsx         ← Left nav: projects + entries list
+│   │   │   ├── Sidebar.tsx         ← Left nav: projects (da API) + entries list
 │   │   │   └── MainPanel.tsx       ← Right area: editor or search results
 │   │   ├── editor/
 │   │   │   ├── EntryEditor.tsx     ← TipTap editor (autosave 1.5s; index SOLO manuale)
 │   │   │   ├── EditorToolbar.tsx   ← Toolbar formattazione + pulsante "Indicizza" manuale
-│   │   │   └── EntryMeta.tsx       ← Title, type, author, tags, summary (manuale), vector status badge
+│   │   │   └── EntryMeta.tsx       ← Title, type, tags, summary (manuali), vector status badge
 │   │   ├── entries/
 │   │   │   ├── EntryList.tsx       ← Sidebar entries list
 │   │   │   ├── EntryListItem.tsx   ← Single entry row in sidebar
 │   │   │   ├── EntryTypeBadge.tsx  ← ADR / Postmortem / Update badge
 │   │   │   └── NewEntryDialog.tsx  ← shadcn Dialog for creating new entries
+│   │   ├── projects/
+│   │   │   ├── NewProjectDialog.tsx     ← Crea nuovo progetto (controlled)
+│   │   │   └── ProjectSettingsDialog.tsx ← Rinomina, descrizione, gestione membri
 │   │   ├── search/
 │   │   │   ├── SearchBar.tsx       ← Semantic search input (debounced 300ms, Ctrl+K)
 │   │   │   └── SearchResults.tsx   ← Results list with score, type, summary
@@ -57,12 +62,15 @@ ui/                          ← Tauri frontend root
 │   │   └── ui/                     ← shadcn/ui components (auto-generated)
 │   ├── store/
 │   │   ├── entries.store.ts        ← Zustand: entries state + actions
+│   │   ├── projects.store.ts       ← Zustand: lista progetti + actions
 │   │   ├── ui.store.ts             ← Zustand: sidebar open, active entry, chat open, dirty/saving/indexing state, chatMode (rag|agent)
-│   │   └── chat.store.ts           ← Zustand: messages per project (chiave "__all__" per scope globale), isWaiting
+│   │   ├── auth.store.ts           ← Zustand: token, refreshToken, user; persistiti in localStorage
+│   │   └── chat.store.ts           ← Zustand: messages per projectId (chiave "__all__" per scope globale)
 │   ├── hooks/
 │   │   ├── useEntries.ts           ← Fetch entries on project change, popola store
+│   │   ├── useProjects.ts          ← Fetch progetti dell'utente, popola store
 │   │   ├── useSearch.ts            ← Debounced semantic search (300ms)
-│   │   ├── useChat.ts              ← send(question) → POST /chat o POST /agent in base a chatMode; project omesso se nessun progetto attivo
+│   │   ├── useChat.ts              ← send(question) → POST /chat o POST /agent in base a chatMode
 │   │   └── useKeyboardShortcuts.ts ← Registra Ctrl+N/K/J a livello window
 │   ├── types/
 │   │   └── index.ts                ← TypeScript types mirroring backend models
@@ -94,21 +102,21 @@ export interface Entry {
   title: string;
   content: string;
   entry_type: EntryType;
-  author: string;
-  project: string;
+  author: string;       // nome display (read-only, copiato al momento della creazione)
+  authorId: string;     // ObjectId dell'utente autore
+  projectId: string;    // ObjectId del progetto
   tags: string[];
   summary: string;
   vector_status: VectorStatus;
-  created_at: string; // ISO datetime
-  week: string;       // e.g. "2026-W10"
+  created_at: string;   // ISO datetime
+  week: string;         // e.g. "2026-W10"
 }
 
 export interface EntryCreate {
   title: string;
   content: string;
   entry_type: EntryType;
-  author: string;
-  project: string;
+  project_id: string;   // ObjectId del progetto
   summary?: string;
   tags?: string[];
 }
@@ -117,15 +125,36 @@ export interface EntryUpdate {
   title?: string;
   content?: string;
   entry_type?: EntryType;
-  author?: string;
-  project?: string;
   summary?: string;
   tags?: string[];
 }
 
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  ownerId: string;
+  createdAt: string;
+  currentUserRole: string; // 'owner' | 'member'
+}
+
+export interface ProjectCreate {
+  name: string;
+  description?: string;
+}
+
+export interface ProjectMember {
+  userId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  addedAt: string;
+}
+
 export interface SearchRequest {
   query: string;
-  project?: string;
+  project_id?: string;  // ObjectId del progetto (opzionale)
   top_k?: number;
 }
 
@@ -135,7 +164,7 @@ export interface SearchResult {
   content: string;
   summary: string;
   author: string;
-  project: string;
+  projectId: string;
   entry_type: EntryType;
   tags: string[];
   score: number;
@@ -152,7 +181,7 @@ export interface ChatMessage {
 
 export interface ChatRequest {
   question: string;
-  project?: string;      // opzionale — omesso = ricerca su tutta la KB
+  project_id?: string;   // ObjectId del progetto (omesso = scope globale)
 }
 
 export interface ChatSource {
@@ -170,7 +199,7 @@ export type SSEEvent =
 
 export interface AgentRequest {
   question: string;
-  project?: string;      // opzionale — omesso = scope globale
+  project_id?: string;   // ObjectId del progetto (omesso = scope globale)
 }
 
 export interface AgentStep {
@@ -294,13 +323,14 @@ Extensions to enable for Notion-like experience:
 ```typescript
 interface UIStore {
   activeEntryId: string | null;
+  activeProjectId: string | null;  // ObjectId del progetto selezionato
   isDirty: boolean;      // modifiche non ancora salvate su DB
   isSaving: boolean;     // PUT /entries/:id in corso
   isIndexing: boolean;   // POST /entries/:id/index in corso
   isChatOpen: boolean;
   isSidebarOpen: boolean;
-  activeProject: string | null;
-  isNewEntryOpen: boolean;  // new entry dialog open
+  isNewEntryOpen: boolean;   // new entry dialog open
+  isNewProjectOpen: boolean; // new project dialog open
   chatMode: 'rag' | 'agent';
 }
 ```
@@ -315,7 +345,7 @@ interface UIStore {
 ```
 
 ### New entry
-Fill metadata modal (title, type, project, author) → `POST /entries` → open in editor.
+Fill metadata modal (title, type — il progetto è automaticamente quello selezionato nella sidebar, l'autore viene ricavato dall'utente autenticato) → `POST /entries` → open in editor.
 Il backend crea con `vector_status = "pending"`, l'entry è subito modificabile.
 
 ### Search
