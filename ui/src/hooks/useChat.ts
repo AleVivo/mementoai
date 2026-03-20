@@ -3,11 +3,11 @@ import { useUIStore } from "@/store/ui.store";
 import { streamChat, streamAgent } from "@/api/chat";
 
 export function useChat() {
-  const { activeProject, chatMode } = useUIStore();
+  const { activeProjectId, chatMode } = useUIStore();
   const { messages, addMessage, appendToken, appendReasoning, addStep, setSources, setStreamingDone } = useChatStore();
 
-  // Key is the active project name, or "__all__" when no project is selected
-  const messageKey = activeProject ?? "__all__";
+  // Key is the active project id, or "__all__" when no project is selected
+  const messageKey = activeProjectId ?? "__all__";
   const projectMessages = messages[messageKey] ?? [];
 
   const lastMessage = projectMessages[projectMessages.length - 1];
@@ -17,14 +17,14 @@ export function useChat() {
     const trimmed = text.trim();
     if (!trimmed || isWaiting) return;
 
-    const scopedProject = activeProject ?? undefined;
+    const scopedProjectId = activeProjectId ?? undefined;
 
     addMessage(messageKey, { role: "user", content: trimmed, isStreaming: false });
     
     if (chatMode === "agent") {
       addMessage(messageKey, { role: "assistant", content: "", isStreaming: true });
       try {
-        for await (const event of streamAgent({ question: trimmed, project: scopedProject })) {
+        for await (const event of streamAgent({ question: trimmed, project_id: scopedProjectId })) {
           switch (event.type) {
             case "token":
               appendToken(messageKey, event.content);
@@ -55,7 +55,7 @@ export function useChat() {
     addMessage(messageKey, { role: "assistant", content: "", isStreaming: true });
 
     try{
-      for await( const event of streamChat({ question: trimmed, project: scopedProject }) ){
+      for await( const event of streamChat({ question: trimmed, project_id: scopedProjectId }) ){
         switch(event.type){
           case "sources":
             setSources(messageKey, event.sources);

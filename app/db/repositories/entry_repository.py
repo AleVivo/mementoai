@@ -6,21 +6,22 @@ from app.models.entry import EntryDocument
 from app.db.client import get_db
 
 
-async def create_entry(entryDocument: EntryDocument) -> EntryDocument:
-    document = entryDocument.model_dump(by_alias=True, exclude_none=True)
+async def create_entry(entry_document: EntryDocument) -> EntryDocument:
+    document = entry_document.model_dump(by_alias=True, exclude_none=True)
     result = await get_db().entries.insert_one(document)
     saved = await get_db().entries.find_one({"_id": result.inserted_id})
     return EntryDocument.model_validate(saved)
 
 async def get_entries(
-        project: Optional[str],
+        project_ids: Optional[list[str]],
         entry_type: Optional[str],
         week: Optional[str],
         limit: int,
         skip: int) -> list[EntryDocument]:
-    query = {}
-    if project:
-        query["project"] = project
+    query: dict = {}
+    if project_ids:
+        oids = [ObjectId(pid) for pid in project_ids]
+        query["projectId"] = {"$in": oids} if len(oids) > 1 else oids[0]
     if entry_type:
         query["entry_type"] = entry_type
     if week:
@@ -63,3 +64,7 @@ async def update_entry(entry_id: str, fields: dict) -> Optional[EntryDocument]:
         return_document=True,
     )
     return EntryDocument.model_validate(doc) if doc else None
+
+async def delete_entries_by_project_id(project_id: str) -> int:
+    result = await get_db().entries.delete_many({"project_id": project_id})
+    return result.deleted_count

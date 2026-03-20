@@ -74,7 +74,7 @@ def chunk_html(
     content: str,
     entry_id: ObjectId,
     entry_title: str,
-    project: str,
+    project_id: str,
     entry_type: str,
     created_at: datetime,
 ) -> list[ChunkDocument]:
@@ -191,7 +191,7 @@ def chunk_html(
                     text=sub_text,
                     token_count=sub_tokens,
                     entry_title=entry_title,
-                    project=project,
+                    project_id=project_id,
                     entry_type=entry_type,
                     created_at=created_at,
                 ))
@@ -207,7 +207,7 @@ def chunk_html(
                 text=full_text,
                 token_count=token_count,
                 entry_title=entry_title,
-                project=project,
+                project_id=project_id,
                 entry_type=entry_type,
                 created_at=created_at,
             ))

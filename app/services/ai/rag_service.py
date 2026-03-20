@@ -3,9 +3,11 @@ import logging
 import time
 from app.models.chat import ChatRequest
 from app.models.chunk import ChunkSearchResult
+from app.models.user import UserResponse
 from app.services.ai import search_service
 from app.services.ai import search_service
 from app.models.search import SearchRequest
+from app.services.ai.search_service import resolve_project_ids
 from app.services.llm.factory import get_chat_provider
 from typing import AsyncGenerator
 
@@ -49,15 +51,14 @@ def _build_context_message(question: str, results: list[ChunkSearchResult]) -> s
     return f"CONTESTO:\n{context}\n\nDOMANDA: {question}"
 
 
-async def stream_rag(request: ChatRequest):
+async def stream_rag(request: ChatRequest, current_user: UserResponse):
     t0 = time.perf_counter()
-    logger.info(f"[chat] START — question: {request.question!r}, project: {request.project!r}")
+    logger.info(f"[chat] START — question: {request.question!r}, project: {request.project_id!r}")
     search_request = SearchRequest(
         query=request.question,
-        project=request.project or None,
         top_k=request.top_k,
     )
-    results = await search_service.search_chunks(search_request)
+    results = await search_service.vector_search_chunks(search_request, current_user)
     logger.info(f"[chat] Vector search done — {len(results)} chunk(s) retrieved ({time.perf_counter()-t0:.2f}s)")
 
     sources = [

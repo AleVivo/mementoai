@@ -21,7 +21,7 @@ async def delete_chunks_by_entry_id(entry_id: str) -> int:
 
 async def vector_search_chunks(
     embedding: list[float],
-    project: str | None = None,
+    project_ids: list[str] | None = None,
     top_k: int = 5
 ) -> list[ChunkSearchResult]:
     inner = {
@@ -33,8 +33,8 @@ async def vector_search_chunks(
         "limit": top_k,
     }
 
-    if project:
-        inner["filter"] = {"project": {"$eq": project}}
+    if project_ids:
+        inner["filter"] = {"project_id": {"$in": project_ids}}
 
     pipeline = [
         {"$vectorSearch": inner},
@@ -56,9 +56,13 @@ async def vector_search_chunks(
             heading=r.get("heading"),
             text=r["text"],
             score=r["score"],
-            project=r["project"],
+            project_id=r["project_id"],
             entry_type=r["entry_type"],
             entry_title=r["entry_title"],
         )
         for r in docs
     ]
+
+async def delete_chunks_by_project_id(project_id: str) -> int:
+    result = await get_db().chunks.delete_many({"project_id": project_id})
+    return result.deleted_count

@@ -8,6 +8,8 @@ Non definisce tool, non definisce mapping — importa tutto dal registry.
 import json
 import logging
 from typing import Optional
+
+from app.db.repositories import project_repository
 from app.services.ai import agent_registry
 from app.services.llm.factory import get_chat_provider
 
@@ -34,17 +36,13 @@ Quando rispondi:
 - Rispondi in italiano
 """
 
-PROJECT_CONTEXT_SNIPPET = """
-Contesto attivo: stai operando sul progetto "{project}".
-Quando usi i tool, applica questo progetto come filtro predefinito
-a meno che la domanda non riguardi esplicitamente altri progetti.
-"""
+_PROJECT_SCOPED_TOOLS = {"search_semantic", "filter_entries", "count_entries"}
 
 # ---------------------------------------------------------------------------
 # ReAct loop - Streaming
 # ---------------------------------------------------------------------------
     
-async def run_agent_stream(question: str, project: Optional[str] = None, max_steps: int = 5) -> AsyncGenerator[str, None]:
+async def run_agent_stream(question: str, project_ids: list[str], max_steps: int = 5) -> AsyncGenerator[str, None]:
     """
     ReAct loop in streaming.
 
@@ -65,11 +63,6 @@ async def run_agent_stream(question: str, project: Optional[str] = None, max_ste
     """
     steps: list[dict] = []
     messages = [{"role": "user", "content": question}]
-
-    system_prompt = AGENT_SYSTEM_PROMPT
-    if project:
-        system_prompt += PROJECT_CONTEXT_SNIPPET.format(project=project)
-
     provider = get_chat_provider()
 
     for step_num in range(max_steps):
@@ -81,7 +74,7 @@ async def run_agent_stream(question: str, project: Optional[str] = None, max_ste
         async for event in provider.stream_chat_with_tools(
             messages=messages,
             tools=agent_registry.TOOLS,
-            system_prompt=system_prompt,
+            system_prompt=AGENT_SYSTEM_PROMPT,
         ):
             if event["type"] == "token":
                 # Accumula — nel tuo originale non veniva emesso subito durante i passi intermedi
@@ -119,17 +112,19 @@ async def run_agent_stream(question: str, project: Optional[str] = None, max_ste
         for tool_call in tool_calls:
             tool_name = tool_call["name"]
             tool_args = tool_call["args"]
+            tool_fn = agent_registry.TOOL_FUNCTIONS.get(tool_name)
 
             logger.info(f"[agent] Tool call: {tool_name}({tool_args})")
 
-            tool_fn = agent_registry.TOOL_FUNCTIONS.get(tool_name)
             if tool_fn is None:
                 tool_result = {"error": f"Tool '{tool_name}' non trovato"}
                 logger.warning(f"[agent] Unknown tool: {tool_name}")
             else:
                 try:
-                    tool_result = await tool_fn(**tool_args)
-                    logger.info(f"[agent] Tool {tool_name} returned {type(tool_result).__name__}")
+                    if tool_name in _PROJECT_SCOPED_TOOLS:
+                        tool_result = await tool_fn(**tool_args, project_ids=project_ids)
+                    else:
+                        tool_result = await tool_fn(**tool_args)
                 except Exception as e:
                     tool_result = {"error": str(e)}
                     logger.error(f"[agent] Tool {tool_name} raised: {e}")

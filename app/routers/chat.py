@@ -10,7 +10,7 @@ router = APIRouter()
 @router.post("")
 async def chat_endpoint(request: ChatRequest, current_user: UserResponse = Depends(get_current_user)):
     return StreamingResponse(
-        rag_service.stream_rag(request),
+        rag_service.stream_rag(request, current_user),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

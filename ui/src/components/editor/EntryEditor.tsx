@@ -23,7 +23,6 @@ const lowlight = createLowlight(common);
 interface LocalMeta {
   title: string;
   entry_type: EntryType;
-  author: string;
   tags: string[];
   summary: string;
 }
@@ -39,7 +38,6 @@ export function EntryEditor({ entry }: EntryEditorProps) {
   const [meta, setMeta] = useState<LocalMeta>({
     title: entry.title,
     entry_type: entry.entry_type,
-    author: entry.author,
     tags: entry.tags,
     summary: entry.summary,
   });
@@ -75,7 +73,6 @@ export function EntryEditor({ entry }: EntryEditorProps) {
     setMeta({
       title: entry.title,
       entry_type: entry.entry_type,
-      author: entry.author,
       tags: entry.tags,
       summary: entry.summary,
     });
@@ -153,12 +150,10 @@ export function EntryEditor({ entry }: EntryEditorProps) {
         entry={entry}
         title={meta.title}
         entryType={meta.entry_type}
-        author={meta.author}
         tags={meta.tags}
         summary={meta.summary}
         onTitleChange={(v) => handleMetaChange({ title: v })}
         onTypeChange={(v) => handleMetaChange({ entry_type: v })}
-        onAuthorChange={(v) => handleMetaChange({ author: v })}
         onTagsChange={(v) => handleMetaChange({ tags: v })}
         onSummaryChange={(v) => handleMetaChange({ summary: v })}
       />

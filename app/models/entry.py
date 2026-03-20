@@ -1,3 +1,4 @@
+from bson import ObjectId
 from pydantic import BaseModel, Field
 from typing import Optional
 from enum import Enum
@@ -18,8 +19,7 @@ class EntryCreate(BaseModel):
     content: str
     entry_type: EntryType
     title: str
-    project: str
-    author: str
+    project_id: str
     summary: Optional[str] = None
     tags: Optional[list[str]] = None
 
@@ -27,8 +27,6 @@ class EntryUpdate(BaseModel):
     content: Optional[str] = None
     entry_type: Optional[EntryType] = None
     title: Optional[str] = None
-    project: Optional[str] = None
-    author: Optional[str] = None
     summary: Optional[str] = None
     tags: Optional[list[str]] = None
 
@@ -38,7 +36,8 @@ class EntryResponse(BaseModel):
     entry_type: EntryType
     title: str
     summary: str
-    project: str
+    projectId: str
+    authorId: str
     author: str
     tags: list[str]
     created_at: datetime
@@ -51,7 +50,8 @@ class EntryDocument(BaseModel):
     entry_type: EntryType
     title: str
     summary: str = ""
-    project: str
+    projectId: ObjectId
+    authorId: ObjectId
     author: str
     tags: list[str] = []
     created_at: datetime

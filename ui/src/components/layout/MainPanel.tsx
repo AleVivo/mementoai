@@ -10,10 +10,10 @@ import { useSearch } from "@/hooks/useSearch";
 import { useRef, useEffect } from "react";
 
 export function MainPanel() {
-  const { activeEntryId, isSidebarOpen, toggleSidebar, setActiveEntryId, activeProject } = useUIStore();
+  const { activeEntryId, isSidebarOpen, toggleSidebar, setActiveEntryId, activeProjectId } = useUIStore();
   const entries = useEntriesStore((s) => s.entries);
   const activeEntry = entries.find((e) => e.id === activeEntryId) ?? null;
-  const { query, setQuery, results, isSearching, clear } = useSearch(activeProject);
+  const { query, setQuery, results, isSearching, clear } = useSearch(activeProjectId);
 
   const isSearchMode = query.trim().length > 0;
   const searchWrapperRef = useRef<HTMLDivElement>(null);

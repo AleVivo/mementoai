@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, status
 from app.models.user import UserCreate, UserResponse, TokenResponse, UserDocument, RefreshRequest, LoginRequest, user_to_response
-from app.db.users_repository import create_user, get_user_by_email, get_user_by_id
+from app.db.repositories.users_repository import create_user, get_user_by_email, get_user_by_id
 from app.services.domain import auth_service
 
 router = APIRouter()

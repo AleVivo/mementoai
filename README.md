@@ -130,18 +130,20 @@ L'API è disponibile su:
 Al primo avvio, popola il database con dati di test e crea l'indice vettoriale:
 
 ```bash
-python seed.py
+python scripts/seed.py
 ```
 
 | Flag | Descrizione |
 |---|---|
-| _(nessuno)_ | Inserisce dati di test (errore se utente già presente) |
+| _(nessuno)_ | Inserisce dati di test (skip se già presenti) |
 | `--reset` | Cancella tutto e reinserisce |
-| `--reset --no-user` | Reinserisce solo le entry (utente già presente) |
+| `--reset --no-user` | Reinserisce progetto + entry (utenti già presenti) |
 
-Credenziali di test: `dev@memento.test` / `memento123` — progetto: `shopflow`.
+Credenziali di test:
+- `alex@memento.com` / `memento123` — owner del progetto `shopflow`
+- `marco@memento.com` / `memento123` — membro del progetto `shopflow`
 
-> `seed.py` crea automaticamente l'indice vettoriale `chunks_vector_index` su MongoDB — non è necessario crearlo manualmente.
+> `scripts/seed.py` crea automaticamente l'indice vettoriale `chunks_vector_index` su MongoDB — non è necessario crearlo manualmente.
 
 ### 3. Frontend (Tauri desktop app)
 
@@ -176,10 +178,12 @@ MementoAI/
 ├── app/
 │   ├── main.py           # FastAPI entrypoint + lifespan (preload/unload modelli Ollama)
 │   ├── config.py         # Settings con pydantic-settings (.env)
-│   ├── models/           # Modelli Pydantic (Entry, User, Chunk, VectorStatus, SearchResult...)
-│   ├── routers/          # Endpoint API (entries, search, chat, agent, auth)
+│   ├── models/           # Modelli Pydantic (Entry, Project, ProjectMember, User, Chunk...)
+│   ├── routers/          # Endpoint API (entries, search, chat, agent, auth, project, users)
 │   ├── dependencies/
-│   │   └── auth.py       # get_current_user — dependency FastAPI per tutti gli endpoint protetti
+│   │   ├── auth.py       # get_current_user — dependency FastAPI per tutti gli endpoint protetti
+│   │   ├── entries.py    # Validazione accesso entry per progetto
+│   │   └── project.py    # Validazione membership progetto
 │   ├── services/
 │   │   ├── ai/           # Logica AI: RAG, ricerca semantica, agente ReAct
 │   │   │   ├── rag_service.py    # Ricerca chunk + costruzione prompt + streaming SSE
@@ -188,8 +192,9 @@ MementoAI/
 │   │   │   ├── agent_registry.py # Catalogo tool disponibili all'agente
 │   │   │   └── agent_tools.py    # Implementazione Python dei tool
 │   │   ├── domain/       # Business logic di dominio
-│   │   │   ├── entry_service.py  # CRUD entry + pipeline di indicizzazione
-│   │   │   └── auth_service.py   # JWT, hashing argon2, build_token_response
+│   │   │   ├── entry_service.py   # CRUD entry + pipeline di indicizzazione
+│   │   │   ├── project_service.py # CRUD progetti + gestione membri
+│   │   │   └── auth_service.py    # JWT, hashing argon2, build_token_response
 │   │   ├── processing/   # Pipeline di trasformazione dati
 │   │   │   ├── chunker.py        # HTML → chunk per heading, max 300 token
 │   │   │   └── embedder.py       # Thin wrapper → llm.factory.get_embedding_provider().embed()
@@ -200,21 +205,29 @@ MementoAI/
 │   │       └── openai_provider.py # OpenAIEmbeddingProvider, OpenAIChatProvider, GroqChatProvider
 │   └── db/
 │       ├── client.py      # Singleton AsyncMongoClient — get_client(), get_db(), close_client()
-│       ├── entry_repository.py   # CRUD collection entries
-│       ├── users_repository.py   # CRUD collection users
-│       └── chunks_repository.py  # insert/delete/vector search collection chunks
+│       ├── indexes.py     # Creazione indici MongoDB all'avvio
+│       └── repositories/
+│           ├── entry_repository.py   # CRUD collection entries
+│           ├── project_repository.py # CRUD collection projects + project_members
+│           ├── users_repository.py   # CRUD collection users
+│           └── chunks_repository.py  # insert/delete/vector search collection chunks
 ├── infra/                # Script per la gestione del container MongoDB
 │   ├── docker_mongo.py   # Lifecycle container (pull, run, start, stop, health check)
 │   ├── docker-compose.yaml # Compose alternativo per gestione manuale
 │   ├── start.py          # python infra/start.py — avvia il container
 │   └── stop.py           # python infra/stop.py — ferma il container
-├── seed.py               # Popola il DB con dati di test e crea l'indice vettoriale
+├── scripts/
+│   └── seed.py           # Popola il DB con dati di test e crea l'indice vettoriale
+├── docs/
+│   ├── architecture.md   # Architettura del sistema, domain model, data flow, auth
+│   └── frontend-spec.md  # Spec frontend: stack, struttura, TypeScript types, UX behaviors
 ├── ui/                   # Desktop app Tauri v2 + React + TipTap
 │   ├── src/              # Codice React (types, api, store, components)
 │   ├── src-tauri/        # Layer Rust + configurazione Tauri
 │   └── package.json
-├── docs/                 # Architettura, spec frontend, istruzioni Copilot
-├── .github/prompts/      # Prompt Copilot per sviluppo guidato
+├── .github/
+│   ├── copilot-instructions.md  # Istruzioni per GitHub Copilot
+│   └── prompts/                 # Prompt riutilizzabili per sviluppo guidato
 ├── .env                  # NON committare — variabili locali
 ├── .env.example          # Template variabili d'ambiente
 ├── pyproject.toml        # Dipendenze e metadati progetto
@@ -230,15 +243,24 @@ MementoAI/
 | `POST` | `/auth/register` | Registra un nuovo utente — `{ email, password, first_name?, last_name?, company? }` |
 | `POST` | `/auth/login` | Login — restituisce `access_token` (30 min), `refresh_token` (7 gg) e profilo utente |
 | `POST` | `/auth/refresh` | Rinnova access token da refresh token; restituisce nuova coppia di token |
+| `GET` | `/projects` | Lista dei progetti di cui l'utente è membro |
+| `POST` | `/projects` | Crea un nuovo progetto |
+| `GET` | `/projects/{id}` | Dettaglio progetto (solo se membro) |
+| `PUT` | `/projects/{id}` | Aggiorna nome/descrizione progetto (solo owner) |
+| `DELETE` | `/projects/{id}` | Elimina progetto e tutte le sue entry (solo owner) |
+| `GET` | `/projects/{id}/members` | Lista membri del progetto |
+| `POST` | `/projects/{id}/members` | Aggiunge membro al progetto (solo owner) — `{ email, role }` |
+| `DELETE` | `/projects/{id}/members/{userId}` | Rimuove membro (solo owner) |
+| `GET` | `/users/search` | Ricerca utente per email — `?email=...` (usato per aggiungere membri) |
 | `POST` | `/entries` | Crea una nuova entry (no LLM — solo persistenza, `vector_status: pending`) |
-| `GET` | `/entries` | Lista entries con filtri (`project`, `type`, `week`, `limit`, `skip`) |
+| `GET` | `/entries` | Lista entries con filtri (`project_id`, `type`, `week`, `limit`, `skip`) |
 | `GET` | `/entries/{id}` | Singola entry per ID |
 | `PUT` | `/entries/{id}` | Aggiorna entry (no LLM — imposta `vector_status: outdated`) |
 | `POST` | `/entries/{id}/index` | Indicizza manualmente: chunking HTML + embedding vettoriale (`nomic-embed-text`) |
 | `DELETE` | `/entries/{id}` | Elimina entry e relativi chunk |
 | `POST` | `/search` | Ricerca semantica vettoriale sui chunk con score di cosine similarity |
-| `POST` | `/chat` | Chat RAG in streaming SSE — emette eventi `sources` (fonti), `token` (risposta incrementale) e `done`; `project` opzionale (omesso = tutta la KB) |
-| `POST` | `/agent` | Chat agente ReAct — usa tool (ricerca, filtri, conteggi) per rispondere in più step; `project` opzionale |
+| `POST` | `/chat` | Chat RAG in streaming SSE — emette eventi `sources` (fonti), `token` (risposta incrementale) e `done`; `project_id` opzionale (omesso = tutta la KB) |
+| `POST` | `/agent` | Chat agente ReAct — usa tool (ricerca, filtri, conteggi) per rispondere in più step; `project_id` opzionale |
 
 ---
 
@@ -264,7 +286,7 @@ Summary e tag dell'entry sono **sempre manuali** — inseriti dall'utente nell'e
 
 ## MongoDB — Vector Search Index
 
-La ricerca vettoriale opera sulla collection **`chunks`** (non `entries`). L'indice viene creato automaticamente da `seed.py` al primo avvio — non è necessario crearlo manualmente.
+La ricerca vettoriale opera sulla collection **`chunks`** (non `entries`). L'indice viene creato automaticamente da `scripts/seed.py` al primo avvio — non è necessario crearlo manualmente.
 
 Se necessario, è possibile ricrearlo manualmente dalla shell di MongoDB:
 
@@ -284,7 +306,11 @@ db.chunks.createSearchIndex(
       },
       {
         type: "filter",
-        path: "project"
+        path: "projectId"
+      },
+      {
+        type: "filter",
+        path: "entry_type"
       }
     ]
   }
@@ -296,3 +322,12 @@ Verifica che lo status sia `READY` prima di usare `/search`, `/chat` e `/agent`:
 ```javascript
 db.chunks.getSearchIndexes()
 ```
+
+---
+
+## Documentazione
+
+| File | Contenuto |
+|---|---|
+| [docs/architecture.md](docs/architecture.md) | Architettura del sistema, domain model (Entry, Project, User), data flow dettagliato (autenticazione, create/save/index entry, RAG, agent), strategia di autenticazione JWT e project-scoped access control |
+| [docs/frontend-spec.md](docs/frontend-spec.md) | Specifiche frontend: stack tecnologico, struttura directory, TypeScript types, layout UI, configurazione TipTap, comportamenti UX (autosave, indicizzazione, chat, shortcut) |

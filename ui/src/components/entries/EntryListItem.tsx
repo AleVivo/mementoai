@@ -7,6 +7,7 @@ import { EntryTypeBadge } from "./EntryTypeBadge";
 import { deleteEntry } from "@/api/entries";
 import { useEntriesStore } from "@/store/entries.store";
 import { useUIStore } from "@/store/ui.store";
+import { useProjectsStore } from "@/store/projects.store";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +31,8 @@ export function EntryListItem({ entry, isActive, onSelect }: EntryListItemProps)
   const [isDeleting, setIsDeleting] = useState(false);
   const { removeEntry } = useEntriesStore();
   const { activeEntryId, setActiveEntryId } = useUIStore();
+  const projects = useProjectsStore((s) => s.projects);
+  const projectName = projects.find((p) => p.id === entry.projectId)?.name ?? "";
 
   async function handleDelete() {
     if (isDeleting) return;
@@ -95,7 +98,7 @@ export function EntryListItem({ entry, isActive, onSelect }: EntryListItemProps)
         )}
       </div>
       <span className="text-xs text-[var(--text-muted-ui)] truncate w-full">
-        {entry.author} · {entry.project}
+        {entry.author}{projectName ? ` · ${projectName}` : ""}
       </span>
     </div>
   );

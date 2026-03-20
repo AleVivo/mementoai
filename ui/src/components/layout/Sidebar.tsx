@@ -1,20 +1,31 @@
-import { PanelLeftClose, MessageSquare, LogOut } from "lucide-react";
+import { useState } from "react";
+import { PanelLeftClose, MessageSquare, LogOut, Settings2, Plus } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useEntriesStore } from "@/store/entries.store";
+import { useProjectsStore } from "@/store/projects.store";
 import { useEntries } from "@/hooks/useEntries";
+import { useProjects } from "@/hooks/useProjects";
 import { EntryList } from "@/components/entries/EntryList";
 import { NewEntryDialog } from "@/components/entries/NewEntryDialog";
+import { NewProjectDialog } from "@/components/projects/NewProjectDialog";
+import { ProjectSettingsDialog } from "@/components/projects/ProjectSettingsDialog";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { Project } from "@/types";
 
 export function Sidebar() {
-  const { activeProject, setActiveProject, toggleSidebar, toggleChat, setActiveEntryId } = useUIStore();
+  const { activeProjectId, setActiveProjectId, toggleSidebar, toggleChat, setActiveEntryId } = useUIStore();
   const { entries, isLoading } = useEntriesStore();
+  const { projects, isLoading: isLoadingProjects } = useProjectsStore();
   const { user, logout } = useAuthStore();
+  const [settingsProject, setSettingsProject] = useState<Project | null>(null);
+  const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+
+  useProjects();
   useEntries();
 
-  const projects = Array.from(new Set(entries.map((e) => e.project))).sort();
+  const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
 
   return (
     <aside className="flex flex-col w-64 shrink-0 h-full border-r border-[var(--border-ui)] bg-[var(--bg-subtle)]">
@@ -31,46 +42,92 @@ export function Sidebar() {
         </Tooltip>
       </div>
 
-      {/* Project filter */}
+      {/* Project list */}
       <div className="px-4 py-4 border-b border-[var(--border-ui)]">
-        <p className="text-[11px] font-medium text-[var(--text-muted-ui)] uppercase tracking-wide mb-3">Progetto</p>
-        <div className="flex flex-col gap-1">
-          <button
-            onClick={() => setActiveProject(null)}
-            className={cn(
-              "text-left text-sm px-3 py-2 rounded-lg truncate transition-colors",
-              activeProject === null ? "bg-[var(--bg-hover)] font-medium text-foreground" : "text-[var(--text-muted-ui)] hover:bg-[var(--bg-hover)] hover:text-foreground"
-            )}
-          >
-            Tutti
-          </button>
-          {projects.map((p) => (
-            <button
-              key={p}
-              onClick={() => setActiveProject(p)}
-              className={cn(
-                "text-left text-sm px-3 py-2 rounded-lg truncate transition-colors",
-                activeProject === p ? "bg-[var(--bg-hover)] font-medium text-foreground" : "text-[var(--text-muted-ui)] hover:bg-[var(--bg-hover)] hover:text-foreground"
-              )}
-            >
-              {p}
-            </button>
-          ))}
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[11px] font-medium text-[var(--text-muted-ui)] uppercase tracking-wide">Progetti</p>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setIsNewProjectOpen(true)}
+                className="p-1 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted-ui)] hover:text-foreground transition-colors"
+              >
+                <Plus size={13} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Nuovo progetto</TooltipContent>
+          </Tooltip>
         </div>
+
+        {isLoadingProjects && projects.length === 0 ? (
+          <p className="text-xs text-[var(--text-muted-ui)] px-3 py-2">Caricamento...</p>
+        ) : projects.length === 0 ? (
+          <p className="text-xs text-[var(--text-muted-ui)] px-3 py-2 italic">
+            Nessun progetto. Creane uno!
+          </p>
+        ) : (
+          <div className="flex flex-col gap-1">
+            {projects.map((p) => (
+              <div
+                key={p.id}
+                className={cn(
+                  "group flex items-center gap-1 rounded-lg transition-colors",
+                  activeProjectId === p.id
+                    ? "bg-[var(--bg-hover)]"
+                    : "hover:bg-[var(--bg-hover)]"
+                )}
+              >
+                <button
+                  onClick={() => { setActiveProjectId(p.id); setActiveEntryId(null); }}
+                  className={cn(
+                    "flex-1 text-left text-sm px-3 py-2 truncate transition-colors",
+                    activeProjectId === p.id
+                      ? "font-medium text-foreground"
+                      : "text-[var(--text-muted-ui)] hover:text-foreground"
+                  )}
+                >
+                  {p.name}
+                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSettingsProject(p); }}
+                      className="shrink-0 p-1.5 mr-1 rounded-md opacity-0 group-hover:opacity-100 text-[var(--text-muted-ui)] hover:text-foreground hover:bg-[var(--bg-subtle)] transition-all"
+                    >
+                      <Settings2 size={12} />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent>Impostazioni progetto</TooltipContent>
+                </Tooltip>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Entry list */}
       <div className="flex-1 overflow-y-auto">
-        <EntryList
-          entries={entries.filter((e) => !activeProject || e.project === activeProject)}
-          onSelect={setActiveEntryId}
-          isLoading={isLoading}
-        />
+        {activeProjectId ? (
+          <EntryList
+            entries={entries}
+            onSelect={setActiveEntryId}
+            isLoading={isLoading}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center h-full gap-1 px-4 text-center">
+            <p className="text-xs text-[var(--text-muted-ui)]">Seleziona un progetto</p>
+            <p className="text-[11px] text-[var(--text-muted-ui)] opacity-60">per vedere le entry</p>
+          </div>
+        )}
       </div>
 
       {/* Footer actions */}
       <div className="flex items-center justify-between px-4 py-3 border-t border-[var(--border-ui)]">
-        <NewEntryDialog defaultProject={activeProject ?? ""} />
+        {activeProject ? (
+          <NewEntryDialog projectId={activeProject.id} />
+        ) : (
+          <span />
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <button onClick={toggleChat} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted-ui)] transition-colors">
@@ -100,6 +157,18 @@ export function Sidebar() {
           <TooltipContent>Logout</TooltipContent>
         </Tooltip>
       </div>
+
+      {/* Project settings dialog */}
+      {settingsProject && (
+        <ProjectSettingsDialog
+          project={settingsProject}
+          open={settingsProject !== null}
+          onOpenChange={(v) => { if (!v) setSettingsProject(null); }}
+        />
+      )}
+
+      {/* New project dialog */}
+      <NewProjectDialog open={isNewProjectOpen} onOpenChange={setIsNewProjectOpen} />
     </aside>
   );
 }
