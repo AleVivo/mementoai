@@ -25,9 +25,10 @@ Knowledge base conversazionale per team di sviluppo piccoli. Permette di cattura
 - [Rust + cargo](https://rustup.rs/) — toolchain `stable-x86_64-pc-windows-msvc`
 - **Windows:** [Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) con workload *Sviluppo di applicazioni desktop con C++* (richiesto da Rust per il linker `link.exe`)
 
-### Modelli Ollama (provider default)
+### Modelli LLM (default locale via LiteLLM + Ollama)
 
-Necessari solo se `LLM_PROVIDER=ollama` (default):
+Il backend usa LiteLLM come integrazione unica per chat ed embedding.
+Con la configurazione di default i modelli passano da Ollama locale:
 
 ```bash
 ollama pull qwen2.5:7b
@@ -36,12 +37,14 @@ ollama pull nomic-embed-text
 
 | Modello | Uso |
 |---|---|
-| `qwen2.5:7b` | Generazione risposte RAG e agente ReAct |
-| `nomic-embed-text` | Embedding vettoriale dei chunk (768 dimensioni) |
+| `ollama_chat/qwen2.5:7b` | Generazione risposte RAG e agente ReAct |
+| `ollama/nomic-embed-text` | Embedding vettoriale dei chunk (768 dimensioni) |
 
-> Con Ollama, entrambi i modelli vengono pre-caricati in memoria (`keep_alive: -1`) e scaricati allo spegnimento. Con provider cloud (OpenAI, Groq) il preload viene saltato.
-
-> **Alternativa cloud:** imposta `LLM_PROVIDER=openai` o `LLM_PROVIDER=groq` nel `.env` — in questo caso Ollama non è necessario. Vedi la sezione Configurazione.
+> LiteLLM seleziona il provider in base al prefisso del modello.
+> Esempi: `ollama/...`, `openai/...`, `groq/...`.
+>
+>**Nota per modelli Ollama**
+>Il prefisso da utilizzare per i modelli Ollama in locale per RAG e agente ReAct è `ollama_chat` e NON `ollama`. Questo permette di richiamare l'endpoint corretto di Ollama per l'utilizzo di tools e reasoning
 
 ---
 
@@ -64,13 +67,17 @@ OLLAMA_URL=http://localhost:11434
 LOG_LEVEL=INFO            # DEBUG per log dettagliati con timing, INFO per flusso normale
 JWT_SECRET_KEY=<stringa-casuale-lunga>  # es. openssl rand -hex 32
 
-# Provider LLM (default: ollama — non richiedono API key)
-LLM_PROVIDER=ollama        # ollama | openai | groq
-EMBEDDING_PROVIDER=ollama  # ollama | openai  (può differire da LLM_PROVIDER)
+# Modelli usati da LiteLLM (prefisso provider/modello)
+LLM_MODEL=ollama_chat/qwen2.5:7b
+EMBEDDING_MODEL=ollama/nomic-embed-text
 
-# Opzionale — richiesti solo con i rispettivi provider
+# Opzionale — richiesti solo se usi modelli cloud
 # OPENAI_API_KEY=sk-...
 # GROQ_API_KEY=gsk_...
+
+# Esempi cloud (opzionali)
+# LLM_MODEL=groq/llama-3.3-70b-versatile
+# EMBEDDING_MODEL=openai/text-embedding-3-small
 ```
 
 > **Il file `.env` non deve mai essere committato su git.** Contiene credenziali sensibili ed è già incluso nel `.gitignore`.
@@ -176,7 +183,7 @@ Produce un installer `.exe` standalone in `ui/src-tauri/target/release/bundle/`.
 ```
 MementoAI/
 ├── app/
-│   ├── main.py           # FastAPI entrypoint + lifespan (preload/unload modelli Ollama)
+│   ├── main.py           # FastAPI entrypoint + lifespan
 │   ├── config.py         # Settings con pydantic-settings (.env)
 │   ├── models/           # Modelli Pydantic (Entry, Project, ProjectMember, User, Chunk...)
 │   ├── routers/          # Endpoint API (entries, search, chat, agent, auth, project, users)
@@ -198,11 +205,10 @@ MementoAI/
 │   │   ├── processing/   # Pipeline di trasformazione dati
 │   │   │   ├── chunker.py        # HTML → chunk per heading, max 300 token
 │   │   │   └── embedder.py       # Thin wrapper → llm.factory.get_embedding_provider().embed()
-│   │   └── llm/          # Provider LLM (pattern Strategy)
+│   │   └── llm/          # Astrazione LLM (pattern Strategy)
 │   │       ├── base.py           # ABC: EmbeddingProvider, ChatProvider, ToolChatProvider
-│   │       ├── factory.py        # get_embedding_provider() / get_chat_provider() — lru_cache
-│   │       ├── ollama_provider.py # OllamaEmbeddingProvider, OllamaChatProvider, preload/unload
-│   │       └── openai_provider.py # OpenAIEmbeddingProvider, OpenAIChatProvider, GroqChatProvider
+│   │       ├── factory.py        # Espone provider concreti (LiteLLMEmbeddingProvider / LiteLLMChatProvider)
+│   │       └── litellm_provider.py # Integrazione unica LiteLLM per chat, tool-calling ed embedding
 │   └── db/
 │       ├── client.py      # Singleton AsyncMongoClient — get_client(), get_db(), close_client()
 │       ├── indexes.py     # Creazione indici MongoDB all'avvio

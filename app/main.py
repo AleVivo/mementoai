@@ -13,35 +13,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def _needs_ollama() -> bool:
-    return (
-        settings.llm_provider.lower() == "ollama"
-        or settings.embedding_provider.lower() == "ollama"
-    )
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("MementoAI starting up...")
     get_client()
 
-    if _needs_ollama():
-        from app.services.llm import ollama_provider
-        try:
-            await ollama_provider.preload_models()
-        except Exception as e:
-            logger.warning(f"Could not preload Ollama models (is Ollama running?): {e}")
-    else:
-        logger.info(f"LLM provider: {settings.llm_provider}, embedding: {settings.embedding_provider} — skipping Ollama preload")
-
     yield
 
     logger.info("MementoAI shutting down...")
-    if _needs_ollama():
-        from app.services.llm import ollama_provider
-        try:
-            await ollama_provider.unload_models()
-        except Exception:
-            pass
     await close_client()
 
 

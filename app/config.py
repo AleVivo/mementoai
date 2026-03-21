@@ -6,21 +6,15 @@ class Settings(BaseSettings):
     mongodb_user: str
     mongodb_password: str
     ollama_url: str
+    ollama_num_gpu: int = 0
     log_level: str = "INFO"
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
 
-    llm_provider: str = "ollama"
-    embedding_provider: str = "ollama"      # Quale provider usare per gli embedding. Valori: "ollama" | "openai"
-    # ATTENZIONE: cambiare questo valore richiede re-indicizzazione completa.
-
-    ollama_chat_model: str = "qwen2.5:7b"
-    ollama_embed_model: str = "nomic-embed-text"
-    openai_chat_model: str = "gpt-4o-mini"
-    openai_embed_model: str = "text-embedding-3-small"
-    groq_chat_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "ollama/qwen3.5:4b" 
+    embedding_model: str = "ollama/nomic-embed-text"
 
     openai_api_key: str = ""                # Richiesta se llm_provider="openai" o embedding_provider="openai"
     groq_api_key: str = ""                  # Richiesta se llm_provider="groq"

@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-20
+last_updated: 2026-03-21
 ---
 
 # MementoAI — Architecture
@@ -59,14 +59,14 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
         │                     │
 ┌───────▼──────┐   ┌──────────────────────┐
 │  MongoDB     │   │  LLM Provider        │
-│  (documents  │   │  Ollama (default)    │
-│  + vectors)  │   │  OpenAI / Groq       │
+│  (documents  │   │  LiteLLM             │
+│  + vectors)  │   │  (ollama/openai/groq)│
 └──────────────┘   └──────────────────────┘
 ```
 
 ## Backend
 
-**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, httpx, pydantic-settings, PyJWT, pwdlib[argon2], openai (opzionale)
+**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, httpx, pydantic-settings, PyJWT, pwdlib[argon2], litellm
 
 ### Domain Model
 
@@ -136,37 +136,37 @@ Il package `services/` è organizzato in quattro sotto-package per responsabilit
 
 **`services/llm/`** — provider LLM (pattern Strategy)
 - `base` — ABC: `EmbeddingProvider`, `ChatProvider`, `ToolChatProvider`
-- `factory` — `get_embedding_provider()` / `get_chat_provider()` con `lru_cache`; risolve il provider da `settings.llm_provider` / `settings.embedding_provider`
-- `ollama_provider` — `OllamaEmbeddingProvider`, `OllamaChatProvider`, `preload_models()`, `unload_models()`
-- `openai_provider` — `OpenAIEmbeddingProvider`, `OpenAIChatProvider`, `GroqChatProvider` (Groq è OpenAI-compatibile)
+- `factory` — `get_embedding_provider()` / `get_chat_provider()` con `lru_cache`; espone provider concreti LiteLLM
+- `litellm_provider` — `LiteLLMEmbeddingProvider` e `LiteLLMChatProvider` (streaming chat, tool-calling, embedding)
 
 ### Modelli LLM
 
-I modelli dipendono dal provider configurato in `.env`. Default (Ollama locale):
+Il backend usa due variabili nel `.env`:
+- `LLM_MODEL` per chat/RAG/agent
+- `EMBEDDING_MODEL` per la vettorializzazione
+
+Entrambe seguono il formato `provider/modello` gestito da LiteLLM.
 
 | Modello | Provider | Uso |
 |---|---|---|
-| `qwen2.5:7b` | Ollama | Chat RAG e agente ReAct |
-| `nomic-embed-text` | Ollama | Embedding dei chunk (768 dim) |
-| `gpt-4o-mini` | OpenAI | Chat RAG e agente (alternativa cloud) |
-| `text-embedding-3-small` | OpenAI | Embedding (1536 dim — richiede re-indicizzazione se si cambia da Ollama) |
-| `llama-3.3-70b-versatile` | Groq | Chat RAG e agente (alternativa cloud free tier) |
-
-Con Ollama, entrambi i modelli vengono pre-caricati all'avvio (`keep_alive: -1`) e scaricati allo shutdown. Con provider cloud il preload viene saltato.
+| `ollama/qwen2.5:7b` | Ollama | Chat RAG e agente ReAct |
+| `ollama/nomic-embed-text` | Ollama | Embedding dei chunk (768 dim) |
+| `openai/gpt-4o-mini` | OpenAI | Chat RAG e agente (alternativa cloud) |
+| `openai/text-embedding-3-small` | OpenAI | Embedding (1536 dim — richiede re-indicizzazione se si cambia da Ollama) |
+| `groq/llama-3.3-70b-versatile` | Groq | Chat RAG e agente (alternativa cloud) |
 
 ### LLM Provider Abstraction
 
 Il layer `app/services/llm/` disaccoppia il resto del codice dal provider LLM concreto:
 
 ```
-settings.llm_provider / settings.embedding_provider (.env)
+settings.llm_model / settings.embedding_model (.env)
   └─ factory.py  (get_chat_provider / get_embedding_provider — lru_cache)
-       ├─ OllamaChatProvider / OllamaEmbeddingProvider
-       ├─ OpenAIChatProvider / OpenAIEmbeddingProvider
-       └─ GroqChatProvider (estende OpenAIChatProvider — stessa API)
+    └─ LiteLLMChatProvider / LiteLLMEmbeddingProvider
+      └─ litellm (routing per prefisso modello: ollama/openai/groq)
 ```
 
-`LLM_PROVIDER` e `EMBEDDING_PROVIDER` possono essere configurati **indipendentemente** — es. Ollama per gli embedding (gratuito, locale) e Groq per la chat (più veloce). Il resto del codice (`rag.py`, `agent.py`, `embedding.py`) non sa quale provider è attivo.
+`LLM_MODEL` e `EMBEDDING_MODEL` possono essere configurati **indipendentemente** (es. Ollama per embedding e Groq per chat). Il resto del codice (`rag_service.py`, `agent.py`, `embedder.py`) non sa quale provider è attivo.
 
 ## Frontend
 
@@ -338,6 +338,6 @@ The application runs fully locally:
 - Tauri bundles the frontend as a native desktop binary
 - FastAPI starts on `localhost:8000` (launched by Tauri sidecar or separately)
 - MongoDB runs locally or via connection string in `.env`
-- Ollama runs as a local service
+- LLM calls pass through LiteLLM (local via Ollama or cloud via OpenAI/Groq, depending on model prefix)
 
-No cloud dependencies. All data remains on-device.
+Cloud dependencies are optional and depend on the configured model providers.
