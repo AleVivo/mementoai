@@ -149,7 +149,7 @@ Entrambe seguono il formato `provider/modello` gestito da LiteLLM.
 
 | Modello | Provider | Uso |
 |---|---|---|
-| `ollama/qwen2.5:7b` | Ollama | Chat RAG e agente ReAct |
+| `ollama_chat/qwen2.5:7b` | Ollama | Chat RAG e agente ReAct |
 | `ollama/nomic-embed-text` | Ollama | Embedding dei chunk (768 dim) |
 | `openai/gpt-4o-mini` | OpenAI | Chat RAG e agente (alternativa cloud) |
 | `openai/text-embedding-3-small` | OpenAI | Embedding (1536 dim — richiede re-indicizzazione se si cambia da Ollama) |
