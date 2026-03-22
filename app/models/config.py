@@ -75,7 +75,7 @@ class SecretField(_BaseField):
 
 class SelectField(_BaseField):
     type: Literal["select"]
-    options: list[SelectOption]
+    options: Optional[list[SelectOption]] = None
     depends_on: Optional[DependsOn] = None
     required: bool = False    
 

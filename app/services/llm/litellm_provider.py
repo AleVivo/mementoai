@@ -4,7 +4,6 @@ from typing import Optional, AsyncGenerator
 
 import litellm
 
-from app.config import settings
 from app.services.llm.base import EmbeddingProvider, ToolChatProvider
 
 logger = logging.getLogger(__name__)
@@ -12,19 +11,41 @@ logger = logging.getLogger(__name__)
 litellm.suppress_debug_info = True
 
 class LiteLLMEmbeddingProvider(EmbeddingProvider):
-    async def embed(self, text: str) -> list[float]:
-        logger.info(f"[litellm] embed — model: {settings.embedding_model}, text length: {len(text)}")
+    def __init__(self, model: str, api_base: Optional[str] = None, api_key: Optional[str] = None) -> None:
+        self.model = model
+        self.api_base = api_base
+        self.api_key = api_key
 
-        response = await litellm.aembedding(
-            model = settings.embedding_model,
-            input = text,
-        )
+    async def embed(self, text: str) -> list[float]:
+        logger.info(f"[litellm] embed — model: {self.model}, text length: {len(text)}")
+
+        kwargs: dict = {"model": self.model, "input": text}
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+
+        response = await litellm.aembedding(**kwargs)
 
         embedding = response.data[0]["embedding"]
         logger.info(f"[litellm] embed — vector dims: {len(embedding)}")
         return embedding
 
 class LiteLLMChatProvider(ToolChatProvider):
+    def __init__(self, model: str, api_base: Optional[str] = None, api_key: Optional[str] = None) -> None:
+        self.model = model
+        self.api_base = api_base
+        self.api_key = api_key
+
+    def _base_kwargs(self) -> dict:
+        """Parametri comuni a tutte le chiamate LiteLLM."""
+        kwargs: dict = {"model": self.model}
+        if self.api_base:
+            kwargs["api_base"] = self.api_base
+        if self.api_key:
+            kwargs["api_key"] = self.api_key
+        return kwargs
+
     async def stream_chat(
         self,
         messages: list[dict],
@@ -33,7 +54,7 @@ class LiteLLMChatProvider(ToolChatProvider):
         full_messages = self._build_messages(messages, system_prompt)
 
         response = await litellm.acompletion(
-            model=settings.llm_model,
+            **self._base_kwargs(),
             messages=full_messages,
             stream=True
         )
@@ -55,7 +76,7 @@ class LiteLLMChatProvider(ToolChatProvider):
         has_tool_calls = False
 
         response = await litellm.acompletion(
-            model=settings.llm_model,
+            **self._base_kwargs(),
             messages=full_messages,
             tools=tools,
             stream=True

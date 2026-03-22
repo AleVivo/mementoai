@@ -1,45 +1,11 @@
 """
 Factory per i provider LLM.
- 
-Questo file è l'unico punto dove viene letta la configurazione del provider.
-Il resto del codice chiama get_embedding_provider() o get_chat_provider()
-e riceve un oggetto che rispetta il contratto ABC — senza sapere quale provider è.
- 
-Pattern usato: Factory Function (non Factory Class — più semplice in Python).
- 
-Come si usa:
-    from app.services.llm.factory import get_embedding_provider, get_chat_provider
- 
-    provider = get_embedding_provider()
-    vector = await provider.embed("testo da vettorizzare")
- 
-Configurazione in .env:
-    LLM_PROVIDER=ollama          # oppure: openai, groq
-    EMBEDDING_PROVIDER=ollama    # può essere diverso da LLM_PROVIDER
-    OPENAI_API_KEY=sk-...
-    GROQ_API_KEY=gsk_...
-    OLLAMA_URL=http://localhost:11434
+I provider sono gestiti da config_handlers.py e cachati in provider_cache.py.
+Questo file esiste per backward compatibility — il codice esistente
+che importa da factory.py continua a funzionare senza modifiche.
 """
 
-import logging
-from functools import lru_cache
- 
-from app.config import settings
-from app.services.llm.base import EmbeddingProvider, ToolChatProvider
- 
-logger = logging.getLogger(__name__)
-
-@lru_cache(maxsize=1)
-def get_embedding_provider() -> EmbeddingProvider:
-    from app.services.llm.litellm_provider import LiteLLMEmbeddingProvider
-    return LiteLLMEmbeddingProvider()
- 
- 
-# ---------------------------------------------------------------------------
-# Chat / completion provider
-# ---------------------------------------------------------------------------
- 
-@lru_cache(maxsize=1)
-def get_chat_provider() -> ToolChatProvider:
-    from app.services.llm.litellm_provider import LiteLLMChatProvider
-    return LiteLLMChatProvider()
+from app.services.llm.provider_cache import (  # noqa: F401
+    get_chat_provider,
+    get_embedding_provider,
+)

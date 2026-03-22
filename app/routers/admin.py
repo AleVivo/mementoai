@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
 
 from app.dependencies.auth import require_admin
+from app.handlers import config_handlers
 from app.models.config import ConfigSectionResponse, ConfigUpdateRequest
 from app.models.user import UserResponse
 from app.services.domain import config_service
@@ -56,5 +57,7 @@ async def update_config_section(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=errors,
         )
+    
+    await config_handlers.run_handler(section_id)
 
     return result
