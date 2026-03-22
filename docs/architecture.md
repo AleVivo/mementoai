@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-21
+last_updated: 2026-03-22
 ---
 
 # MementoAI — Architecture
@@ -30,43 +30,47 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 │  └──────────────────────────────────────────┘   │
 └──────────────────┬──────────────────────────────┘
                    │ HTTP localhost:8000
-┌──────────────────▼────────────────────────────────────────────┐
-│  Backend (FastAPI — Python)                                   │
-│  POST /auth/register     ← registrazione utente               │  
-|  POST /auth/login        ← login → JWT access                 |
-|  POST /auth/refresh      ← rinnovo token (token rotation)     |
-│  GET  /projects          ← lista progetti dell'utente          │
-│  POST /projects          ← crea progetto                       │
-│  GET  /projects/:id      ← dettaglio progetto                  │
-│  PUT  /projects/:id      ← aggiorna progetto                   │
-│  DELETE /projects/:id    ← elimina progetto                    │
-│  GET  /projects/:id/members    ← lista membri                  │
-│  POST /projects/:id/members    ← aggiungi membro               │
-│  DELETE /projects/:id/members/:userId ← rimuovi membro        │
-│  GET  /users/search      ← ricerca utente per email (lookup)   │
-│  POST /entries          ← create entry                        │
-│  GET  /entries          ← list entries (filter)               │
-│  GET  /entries/:id      ← get single entry                    │
-│  PUT  /entries/:id      ← save entry (no LLM)                 │
-│  POST /entries/:id/index← vectorize entry                     │
-│  DEL  /entries/:id      ← delete entry                        │
-│  POST /search           ← semantic vector search              │
-│  POST /chat             ← RAG chat (SSE stream)               │
-│  POST /agent            ← ReAct agent (SSE stream)            │
-└──────────────────┬────────────────────────────────────────────┘
+┌──────────────────▼──────────────────────────────────────────────────────────┐
+│  Backend (FastAPI — Python)                                                 │
+│  POST /auth/register     ← registrazione utente                             │  
+|  POST /auth/login        ← login → JWT access                               |
+|  POST /auth/refresh      ← rinnovo token (token rotation)                   |
+│  GET  /projects          ← lista progetti dell'utente                       │
+│  POST /projects          ← crea progetto                                    │
+│  GET  /projects/:id      ← dettaglio progetto                               │
+│  PUT  /projects/:id      ← aggiorna progetto                                │
+│  DELETE /projects/:id    ← elimina progetto                                 │
+│  GET  /projects/:id/members    ← lista membri                               │
+│  POST /projects/:id/members    ← aggiungi membro                            │
+│  DELETE /projects/:id/members/:userId ← rimuovi membro                      │
+│  GET  /users/search      ← ricerca utente per email (lookup)                │
+│  POST /entries          ← create entry                                      │
+│  GET  /entries          ← list entries (filter)                             │
+│  GET  /entries/:id      ← get single entry                                  │
+│  PUT  /entries/:id      ← save entry (no LLM)                               │
+│  POST /entries/:id/index← vectorize entry                                   │
+│  DEL  /entries/:id      ← delete entry                                      │
+│  POST /search           ← semantic vector search                            │
+│  POST /chat             ← RAG chat (SSE stream)                             │
+│  POST /agent            ← ReAct agent (SSE stream)                          │
+│  GET  /admin/config      ← lista sezioni config (admin only)                │
+│  GET  /admin/config/:id  ← singola sezione config (admin only)              │
+│  PUT  /admin/config/:id  ← aggiorna config + reload provider (admin only)   │
+└──────────────────┬──────────────────────────────────────────────────────────┘
                    │
         ┌──────────┴──────────┐
         │                     │
 ┌───────▼──────┐   ┌──────────────────────┐
 │  MongoDB     │   │  LLM Provider        │
 │  (documents  │   │  LiteLLM             │
-│  + vectors)  │   │  (ollama/openai/groq)│
+│  + vectors   │   │  (ollama/openai/groq)│
+│  + config)   │   │  configurato da DB   │
 └──────────────┘   └──────────────────────┘
 ```
 
 ## Backend
 
-**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, httpx, pydantic-settings, PyJWT, pwdlib[argon2], litellm
+**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, pydantic-settings, PyJWT, pwdlib[argon2], litellm, cryptography
 
 ### Domain Model
 
@@ -79,6 +83,7 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 | `first_name` | `str` | Nome |
 | `last_name` | `str` | Cognome |
 | `company` | `str` | Azienda (opzionale) |
+| `role` | `str` | `user` \| `admin` — ruolo a livello di sistema |
 | `created_at` | `datetime` | Timestamp di registrazione |
 
 **Entry** — the core document unit:
@@ -115,12 +120,32 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 | `role` | `str` | `owner` \| `member` |
 | `addedAt` | `datetime` | Timestamp di aggiunta |
 
+**ConfigSchema** — struttura della configurazione admin (read-only):
+| Field | Type | Description |
+|---|---|---|
+| `_id` | `str` | Identificatore semantico: `llm` \| `embedding` \| `observability` |
+| `type` | `str` | `integration` \| `settings` |
+| `label` | `str` | Label visualizzata nella admin console |
+| `description` | `str` | Descrizione opzionale |
+| `fields` | `list` | Definizione dei campi (text, secret, select, toggle) |
+
+**ConfigValues** — valori correnti della configurazione:
+| Field | Type | Description |
+|---|---|---|
+| `_id` | `str` | Corrisponde all'`_id` del ConfigSchema |
+| `values` | `dict` | Valori salvati dall'admin (secret cifrati con Fernet) |
+| `status` | `str` | `unknown` \| `active` \| `error` — solo per `integration` |
+| `status_message` | `str` | Messaggio di errore opzionale |
+| `last_tested_at` | `datetime` | Ultimo test di connessione |
+| `updated_at` | `datetime` | Timestamp ultimo aggiornamento |
+| `updated_by` | `str` | ObjectId dell'admin che ha aggiornato |
+
 ### Services
 
-Il package `services/` è organizzato in quattro sotto-package per responsabilità:
+Il package `services/` è organizzato per responsabilità:
 
 **`services/ai/`** — logica AI
-- `rag_service` — ricerca chunk + costruzione prompt + streaming SSE; ingloba il vecchio `chat_service`
+- `rag_service` — ricerca chunk + costruzione prompt + streaming SSE
 - `search_service` — embedding della query + vector search via `chunks_repository`
 - `agent` — loop ReAct: il modello ragiona iterativamente, sceglie un tool dal registry, esegue, osserva il risultato e itera fino alla risposta finale (max `max_steps` iterazioni)
 - `agent_registry` — catalogo dei tool disponibili all'agente: ricerca semantica, filtri per progetto/tipo, conteggi
@@ -128,7 +153,9 @@ Il package `services/` è organizzato in quattro sotto-package per responsabilit
 
 **`services/domain/`** — business logic di dominio
 - `entry_service` — CRUD entry + pipeline di indicizzazione (`index_entry`)
-- `auth_service` — `hash_password`, `verify_password` (argon2), `create_access_token`, `create_refresh_token`, `decode_*` (PyJWT HS256), `build_token_response`
+- `project_service` — CRUD progetti + gestione membri
+- `auth_service` — JWT, hashing argon2, `build_token_response`
+- `config_service` — merge schema+values, validazione, cifratura/decifratura secret
 
 **`services/processing/`** — servizi di trasformazione dati
 - `chunker` — parsing HTML TipTap → chunk per heading, max 300 token (cl100k_base / tiktoken)
@@ -136,16 +163,66 @@ Il package `services/` è organizzato in quattro sotto-package per responsabilit
 
 **`services/llm/`** — provider LLM (pattern Strategy)
 - `base` — ABC: `EmbeddingProvider`, `ChatProvider`, `ToolChatProvider`
-- `factory` — `get_embedding_provider()` / `get_chat_provider()` con `lru_cache`; espone provider concreti LiteLLM
-- `litellm_provider` — `LiteLLMEmbeddingProvider` e `LiteLLMChatProvider` (streaming chat, tool-calling, embedding)
+- `factory` — re-export di `get_chat_provider` / `get_embedding_provider` da `provider_cache` (backward compatibility)
+- `provider_cache` — singleton in memoria per i provider attivi; aggiornabile a runtime senza riavvio
+- `litellm_provider` — `LiteLLMChatProvider(model, api_base, api_key)` e `LiteLLMEmbeddingProvider(model, api_base, api_key)`
 
-### Modelli LLM
+**`handlers/`** — handler di reload configurazione
+- `config_handlers` — dispatch table `SECTION_HANDLERS`: ogni sezione ha un handler che legge `config_values` da MongoDB e aggiorna `provider_cache`; `run_all_handlers()` chiamato dal lifespan all'avvio
 
-Il backend usa due variabili nel `.env`:
-- `LLM_MODEL` per chat/RAG/agent
-- `EMBEDDING_MODEL` per la vettorializzazione
+**`utils/`** — utility trasversali
+- `encryption` — cifratura simmetrica Fernet (AES-128) derivata da `JWT_SECRET_KEY` via SHA-256; `encrypt()`, `decrypt()`, `mask_secret()`
 
-Entrambe seguono il formato `provider/modello` gestito da LiteLLM.
+### Admin Console — Configurazione Dinamica
+
+La configurazione dei provider LLM e dell'observability è gestita a runtime tramite la admin console. Non richiede modifiche al `.env` né riavvii del backend.
+
+**Flusso di aggiornamento:**
+```
+Admin → PUT /admin/config/{section_id} { values: {...} }
+  → config_service valida i values contro config_schema
+  → secret cifrati con Fernet prima del salvataggio
+  → upsert in config_values
+  → config_handlers.run_handler(section_id)
+      → get_decrypted_values(section_id)   ← legge da MongoDB con secret in chiaro
+      → istanzia nuovo LiteLLMChatProvider(model, api_base, api_key)
+      → provider_cache.set_chat_provider(provider)  ← aggiorna singleton in memoria
+  → risponde 200 con schema + values merged (secret mascherati)
+```
+
+**Flusso all'avvio:**
+```
+lifespan
+  → run_all_handlers()   ← esegue tutti gli handler registrati in sequenza
+      → llm handler      ← inizializza chat provider
+      → embedding handler ← inizializza embedding provider
+      → observability handler ← configura Langfuse se abilitato
+  → se un provider non ha config_values → RuntimeError esplicito alla prima chiamata AI
+```
+
+**Sezioni configurabili:**
+
+| Section ID | Type | Configura |
+|---|---|---|
+| `llm` | `integration` | Provider chat: Ollama, OpenAI, Groq — modello e credenziali |
+| `embedding` | `integration` | Provider embedding: Ollama, OpenAI — modello e credenziali |
+| `observability` | `integration` | Tracing AI: Langfuse (host, public key, secret key) |
+
+**Accesso:** solo utenti con `role: "admin"`. Gli endpoint `/admin/config/*` restituiscono 403 per tutti gli altri utenti. Il ruolo admin si assegna direttamente su MongoDB — non è selezionabile in fase di registrazione.
+
+### LLM Provider Abstraction
+
+```
+config_values (MongoDB)
+  └─ config_handlers.py  (run_handler → legge DB, istanzia provider)
+       └─ provider_cache.py  (singleton in memoria — get/set_chat_provider)
+            └─ LiteLLMChatProvider(model, api_base, api_key)
+                 └─ litellm  (routing per prefisso: ollama/ openai/ groq/)
+```
+
+`LLM_MODEL` e `EMBEDDING_MODEL` non sono più nel `.env` — sono salvati in `config_values` e configurabili dalla admin console senza riavvio. `api_base` e `api_key` vengono passati direttamente alle chiamate LiteLLM — nessun effetto collaterale su `os.environ` (eccezione: Langfuse richiede variabili d'ambiente per il suo SDK).
+
+**Provider supportati:**
 
 | Modello | Provider | Uso |
 |---|---|---|
@@ -154,19 +231,6 @@ Entrambe seguono il formato `provider/modello` gestito da LiteLLM.
 | `openai/gpt-4o-mini` | OpenAI | Chat RAG e agente (alternativa cloud) |
 | `openai/text-embedding-3-small` | OpenAI | Embedding (1536 dim — richiede re-indicizzazione se si cambia da Ollama) |
 | `groq/llama-3.3-70b-versatile` | Groq | Chat RAG e agente (alternativa cloud) |
-
-### LLM Provider Abstraction
-
-Il layer `app/services/llm/` disaccoppia il resto del codice dal provider LLM concreto:
-
-```
-settings.llm_model / settings.embedding_model (.env)
-  └─ factory.py  (get_chat_provider / get_embedding_provider — lru_cache)
-    └─ LiteLLMChatProvider / LiteLLMEmbeddingProvider
-      └─ litellm (routing per prefisso modello: ollama/openai/groq)
-```
-
-`LLM_MODEL` e `EMBEDDING_MODEL` possono essere configurati **indipendentemente** (es. Ollama per embedding e Groq per chat). Il resto del codice (`rag_service.py`, `agent.py`, `embedder.py`) non sa quale provider è attivo.
 
 ## Frontend
 
@@ -178,7 +242,9 @@ See [frontend-spec.md](./frontend-spec.md) for full detail.
 
 ### Strategia
 
-Autenticazione **stateless JWT** con token rotation. Accesso alle entry e alle funzioni AI è **project-scoped**: un utente può accedere solo ai progetti di cui è membro (come `owner` o `member`). I ruoli sono gestiti dalla collection `project_members`.
+Autenticazione **stateless JWT** con token rotation. Accesso alle entry e alle funzioni AI è **project-scoped**: un utente può accedere solo ai progetti di cui è membro (come `owner` o `member`). I ruoli di progetto sono gestiti dalla collection `project_members`.
+
+Il ruolo `admin` è un ruolo **a livello di sistema** sul documento `User` — non è legato a un progetto specifico. Gli admin accedono agli endpoint `/admin/config/*` per gestire la configurazione dell'istanza.
 
 L'owner di un progetto può invitare altri utenti (ricerca per email via `GET /users/search`) e rimuoverli. L'owner non può essere rimosso finché è l'unico membro.
 
@@ -197,6 +263,7 @@ Entrambi firmati HS256 con `JWT_SECRET_KEY` dal `.env`.
 User → POST /auth/register { email, password, first_name?, last_name?, company? }
   → password hashata con argon2 (pwdlib)
   → UserDocument salvato in MongoDB (collection `users`, indice unique su `email`)
+  → role: "user" assegnato di default (admin si assegna direttamente su MongoDB)
   → Response: UserResponse (senza password)
 
 User → POST /auth/login { email, password }
@@ -208,6 +275,10 @@ Request autenticata → header Authorization: Bearer <access_token>
   → dependency get_current_user() in app/dependencies/auth.py
   → decodifica JWT, lookup utente per sub (ObjectId _id)
   → 401 se token invalido/scaduto/utente non trovato
+
+Request admin → dependency require_admin()
+  → chiama get_current_user() + verifica role == "admin"
+  → 403 se ruolo non è admin
 
 Access token scaduto → POST /auth/refresh { refresh_token }
   → nuovi access_token + refresh_token (token rotation)
@@ -225,13 +296,14 @@ Access token scaduto → POST /auth/refresh { refresh_token }
 | `GET /users/search` | ✅ Bearer token |
 | `GET/POST/PUT/DELETE /projects` e `/projects/:id/*` | ✅ Bearer token + membership check |
 | Tutti gli altri (`/entries`, `/search`, `/chat`, `/agent`) | ✅ Bearer token + membership check |
+| `GET/PUT /admin/config/*` | ✅ Bearer token + role: "admin" |
 
 ### Frontend
 
 - `ui/src/store/auth.store.ts` — Zustand store: `token`, `refreshToken`, `user`; persistiti in `localStorage`
 - `ui/src/api/client.ts` — injetta `Authorization: Bearer` header su ogni request; su 401 tenta refresh silenzioso (singleton promise — evita thundering herd); se il refresh fallisce chiama `logout()`
-- `ui/src/api/chat.ts` — idem per le SSE stream di `/chat` e `/agent` (fetch dirette non passano per `client.ts`)
-- `ui/src/components/auth/` — `LoginPage`, `RegisterPage`, `AuthBrandingPanel`; il toggle tema è disponibile prima del login
+- `ui/src/api/chat.ts` — idem per le SSE stream di `/chat` e `/agent`
+- `ui/src/components/auth/` — `LoginPage`, `RegisterPage`, `AuthBrandingPanel`
 - `ui/src/App.tsx` — auth gate: se `token === null` → pagine auth, altrimenti layout principale
 
 ## Data Flow
@@ -239,13 +311,28 @@ Access token scaduto → POST /auth/refresh { refresh_token }
 ### Register / Login
 ```
 POST /auth/register { email, password, first_name?, last_name?, company? }
-  → Valida email univoca → hasha password → salva UserDocument
+  → Valida email univoca → hasha password → salva UserDocument (role: "user")
   → Response: UserResponse (201)
 
 POST /auth/login { email, password }
   → Verifica credenziali (costante nel tempo)
   → Response: TokenResponse { access_token, refresh_token, user }
   → UI: token in localStorage, layout principale sbloccato
+```
+
+### Admin Config Update
+```
+PUT /admin/config/{section_id} { values: { provider, model, api_key, ... } }
+  → require_admin: verifica role == "admin" → 403 altrimenti
+  → config_service.update_config_section():
+      → valida values contro config_schema (required, required_if, select options)
+      → cifra campi type:"secret" con Fernet
+      → upsert in config_values
+  → config_handlers.run_handler(section_id):
+      → get_decrypted_values() ← legge DB con secret in chiaro
+      → istanzia nuovo provider (LiteLLMChatProvider / LiteLLMEmbeddingProvider)
+      → provider_cache.set_*_provider() ← aggiorna singleton
+  → Response: ConfigSectionResponse (schema + values merged, secret mascherati)
 ```
 
 ### Create Entry
@@ -271,7 +358,7 @@ PUT /entries/:id { content, title, ... }
 POST /entries/:id/index  (trigger: manuale tramite pulsante "Indicizza" nella toolbar)
   → Backend: legge content corrente
   → chunker   → divide HTML in chunk per heading (max 300 token)
-  → embedding → vettore per ogni chunk (nomic-embed-text)
+  → embedding → vettore per ogni chunk (provider_cache.get_embedding_provider())
   → MongoDB:  - cancella chunk precedenti
               - inserisce nuovi chunk con embedding nella collection `chunks`
               - imposta vector_status = "indexed"
@@ -295,49 +382,50 @@ User types in search box
 ```
 User types question in chat panel (modalità RAG)
   → POST /chat { question, project? }
-     - project omesso = ricerca su tutta la knowledge base
-     - project valorizzato = scopo limitato al progetto
-  → Backend: query embedded (nomic-embed-text)
-           → vector search sui chunk (collection `chunks`, indice `chunks_vector_index`)
+  → Backend: query embedded (provider_cache.get_embedding_provider())
+           → vector search sui chunk (collection `chunks`)
            → top-k chunk recuperati
            → SSE stream aperto:
-               data: {"type":"sources","sources":[{"entry_id","title","entry_type","section"},...]}
-               data: {"type":"token","content":"..."}   ← uno per token
+               data: {"type":"sources","sources":[...]}
+               data: {"type":"token","content":"..."}
                data: {"type":"done"}
-  → Frontend: SSEEvent parsed da streamChat() async generator
-  → sources event → ChatMessage.sources popolato (accordion fonti)
-  → token events  → content appendato token by token
-  → done event    → isStreaming = false
   → Answer rendered as markdown in chat bubble
-  → Sources shown as collapsible accordion above the text
 ```
 
 ### Agent Chat
 ```
 User types question in chat panel (modalità Agent)
   → POST /agent { question, project?, max_steps }
-     - project omesso = tool operano su tutta la knowledge base
   → Backend: loop ReAct — max max_steps iterazioni con stream=True
        1. LLM ragiona sull'input (streaming tokens come 'reasoning')
-       2. Sceglie un tool dal registry (tool_calls nel chunk intermedio)
-       3. Esegue il tool e manda subito l'evento 'step' al client
-       4. Ripete finché ha abbastanza informazioni o raggiunge max_steps
-       5. Genera la risposta finale come token in streaming
+       2. Sceglie un tool dal registry
+       3. Esegue il tool → evento 'step' al client
+       4. Ripete finché ha risposta o raggiunge max_steps
   → SSE stream:
-       data: {"type":"reasoning","content":"..."}   ← ragionamento del modello
-       data: {"type":"step","tool":"...","args":{},"result":{}}  ← tool eseguito
-       data: {"type":"token","content":"..."}         ← risposta finale token-by-token
+       data: {"type":"reasoning","content":"..."}
+       data: {"type":"step","tool":"...","args":{},"result":{}}
+       data: {"type":"token","content":"..."}
        data: {"type":"done","steps":[...],"model":"..."}
-  → Answer rendered as markdown in chat bubble
-  → Steps shown as collapsible list above the answer
 ```
 
 ## Deployment
 
-The application runs fully locally:
-- Tauri bundles the frontend as a native desktop binary
-- FastAPI starts on `localhost:8000` (launched by Tauri sidecar or separately)
-- MongoDB runs locally or via connection string in `.env`
-- LLM calls pass through LiteLLM (local via Ollama or cloud via OpenAI/Groq, depending on model prefix)
+The application runs fully locally — no mandatory cloud dependencies:
 
-Cloud dependencies are optional and depend on the configured model providers.
+- Tauri bundles the frontend as a native desktop binary
+- FastAPI starts on `localhost:8000` (launched by Tauri sidecar or separately during development)
+- MongoDB runs locally via Docker container (see `infra/`)
+- LLM provider is configured via the admin console — Ollama (local, default) or cloud providers (OpenAI, Groq) are optional and set at runtime without `.env` changes or restarts
+
+**`.env` contains infrastructure only** — secrets and URLs that cannot change at runtime:
+
+| Variable | Description |
+|---|---|
+| `MONGODB_URL` | MongoDB connection string |
+| `MONGODB_DB` | Database name |
+| `MONGODB_USER` | MongoDB user |
+| `MONGODB_PASSWORD` | MongoDB password |
+| `JWT_SECRET_KEY` | JWT signing key (also used to derive Fernet encryption key) |
+| `LOG_LEVEL` | Logging level (default: INFO) |
+
+LLM provider, model, API keys, and observability settings are stored in `config_values` (MongoDB) and managed exclusively via `PUT /admin/config/{section_id}`.
