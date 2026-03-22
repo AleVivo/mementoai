@@ -45,8 +45,8 @@ async def _handle_llm(values: dict[str, Any]) -> None:
 
     model_string = _build_model_string(provider, model)
 
-    api_base: Optional[str] = values.get("host") if provider == "ollama" else None
-    api_key: Optional[str] = values.get("api_key") if provider != "ollama" else None
+    api_base: Optional[str] = values.get("host") if provider == "ollama_chat" else None
+    api_key: Optional[str] = values.get("api_key") if provider != "ollama_chat" else None
 
     provider_cache.set_chat_provider(litellm_provider.LiteLLMChatProvider(
         model=model_string, 

@@ -35,7 +35,7 @@ CONFIG_SCHEMAS = [
                 "label": "Host",
                 "type": "text",
                 "placeholder": "http://localhost:11434",
-                "required_if": {"field": "provider", "in": ["ollama"]},
+                "required_if": {"field": "provider", "in": ["ollama_chat"]},
             },
             {
                 "key": "model",
@@ -47,7 +47,7 @@ CONFIG_SCHEMAS = [
                         "ollama_chat": [
                             {"value": "qwen2.5:7b",  "label": "Qwen 2.5 7B"},
                             {"value": "llama3.2:3b", "label": "Llama 3.2 3B"},
-                            {"value": "qwen2.5:14b", "label": "Qwen 2.5 14B"},
+                            {"value": "qwen2.5:3b", "label": "Qwen 2.5 3B"},
                         ],
                         "openai": [
                             {"value": "gpt-4o-mini", "label": "GPT-4o Mini"},
@@ -55,7 +55,7 @@ CONFIG_SCHEMAS = [
                         ],
                         "groq": [
                             {"value": "llama-3.3-70b-versatile", "label": "Llama 3.3 70B"},
-                            {"value": "mixtral-8x7b-32768",      "label": "Mixtral 8x7B"},
+                            {"value": "llama-3.1-8b-instant",      "label": "Llama 3.1 8B Instant"},
                         ],
                     },
                 },
@@ -65,7 +65,7 @@ CONFIG_SCHEMAS = [
                 "key": "api_key",
                 "label": "API Key",
                 "type": "secret",
-                "required_if": {"field": "provider", "not_in": ["ollama"]},
+                "required_if": {"field": "provider", "not_in": ["ollama_chat"]},
             },
         ],
     },
@@ -164,7 +164,7 @@ CONFIG_VALUES_DEFAULT = [
         "values": {
             "provider": "ollama_chat",
             "host": "http://localhost:11434",
-            "model": "qwen2.5:7b",
+            "model": "qwen2.5:3b",
             "api_key": None,
         },
         "status": "unknown",

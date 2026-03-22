@@ -83,7 +83,6 @@ class LiteLLMChatProvider(ToolChatProvider):
         )
 
         async for chunk in response: # type: ignore[assignment]
-            print(f"[litellm] chunk: {chunk}")
             if not chunk.choices:
                 continue
 
@@ -92,7 +91,6 @@ class LiteLLMChatProvider(ToolChatProvider):
 
             # Token di testo (reasoning intermedio o risposta finale)
             if delta.content:
-                print(f"[litellm] token: {delta.content}")
                 yield {"type": "token", "content": delta.content}
 
             # Frammenti di tool_call — accumula finché non sono completi
