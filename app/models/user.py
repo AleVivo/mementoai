@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, EmailStr, Field
 from bson import ObjectId
 
+UserRole = Literal["user", "admin"]
 
 class UserDocument(BaseModel):
     id: Optional[ObjectId] = Field(default=None, alias="_id")
@@ -11,6 +12,7 @@ class UserDocument(BaseModel):
     first_name: str = ""
     last_name: str = ""
     company: str = ""
+    role: UserRole = "user"
     created_at: datetime = Field(default_factory=lambda: datetime.now())
 
     model_config = {
@@ -38,6 +40,7 @@ class UserResponse(BaseModel):
     first_name: str
     last_name: str
     company: str
+    role: UserRole
     created_at: datetime
 
 
@@ -59,5 +62,6 @@ def user_to_response(user: "UserDocument") -> UserResponse:
         first_name=user.first_name,
         last_name=user.last_name,
         company=user.company,
+        role=user.role,
         created_at=user.created_at,
     )

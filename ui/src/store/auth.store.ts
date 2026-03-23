@@ -23,7 +23,7 @@ export const useAuthStore = create<AuthState>(() => {
   const refreshToken = localStorage.getItem("auth_refresh_token");
   const storedProfile = localStorage.getItem("auth_user");
   const user: User | null = token
-    ? (storedProfile ? JSON.parse(storedProfile) : { id: "", email: decodeEmail(token), first_name: "", last_name: "", company: "", created_at: "" })
+    ? (storedProfile ? JSON.parse(storedProfile) : { id: "", email: decodeEmail(token), first_name: "", last_name: "", company: "", role: "user", created_at: "" })
     : null;
 
   return {
@@ -38,6 +38,7 @@ export const useAuthStore = create<AuthState>(() => {
         first_name: profile?.first_name ?? "",
         last_name: profile?.last_name ?? "",
         company: profile?.company ?? "",
+        role: profile?.role ?? "user",
         created_at: profile?.created_at ?? "",
       };
       localStorage.setItem("auth_token", token);

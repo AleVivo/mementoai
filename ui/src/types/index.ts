@@ -139,6 +139,7 @@ export interface User {
   first_name: string;
   last_name: string;
   company: string;
+  role: "user" | "admin";
   created_at: string;
 }
 
@@ -147,4 +148,55 @@ export interface AuthResponse {
   refresh_token: string;
   token_type: string;
   user: User;
+}
+
+// #### ADMIN TYPES ####
+
+export type FieldType = "text" | "secret" | "select" | "toggle";
+export type SectionType = "integration" | "settings";
+export type ConfigStatus = "unknown" | "active" | "error";
+
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+export interface DependsOn {
+  field: string;
+  options: Record<string, SelectOption[]>;
+}
+
+export interface RequiredIf {
+  field: string;
+  in?: string[];
+  not_in?: string[];
+}
+
+export interface SchemaField {
+  key: string;
+  label: string;
+  type: FieldType;
+  required?: boolean;
+  required_if?: RequiredIf;
+  placeholder?: string;
+  options?: SelectOption[];
+  depends_on?: DependsOn;
+  value: string | boolean | null;
+}
+
+export interface ConfigSection {
+  id: string;
+  type: SectionType;
+  label: string;
+  description?: string;
+  fields: SchemaField[];
+  status?: ConfigStatus;
+  status_message?: string;
+  last_tested_at?: string;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+export interface ConfigUpdateRequest {
+  values: Record<string, string | boolean | null>;
 }

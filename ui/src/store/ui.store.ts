@@ -12,6 +12,8 @@ interface UIState {
   activeProjectId: string | null;
   isNewEntryOpen: boolean;
   chatMode: ChatMode;
+  isAdminConsoleOpen: boolean;
+
 
   setActiveEntryId: (id: string | null) => void;
   setDirty: (dirty: boolean) => void;
@@ -22,6 +24,7 @@ interface UIState {
   setActiveProjectId: (id: string | null) => void;
   setNewEntryOpen: (open: boolean) => void;
   setChatMode: (mode: ChatMode) => void;
+  toggleAdminConsole: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -34,8 +37,9 @@ export const useUIStore = create<UIState>((set) => ({
   activeProjectId: null,
   isNewEntryOpen: false,
   chatMode: "rag",
+  isAdminConsoleOpen: false,
 
-  setActiveEntryId: (id) => set({ activeEntryId: id, isDirty: false }),
+  setActiveEntryId: (id) => set({ activeEntryId: id, isDirty: false, isAdminConsoleOpen: false }),
   setDirty: (dirty) => set({ isDirty: dirty }),
   setSaving: (saving) => set({ isSaving: saving }),
   setIndexing: (indexing) => set({ isIndexing: indexing }),
@@ -44,4 +48,5 @@ export const useUIStore = create<UIState>((set) => ({
   setActiveProjectId: (id) => set({ activeProjectId: id }),
   setNewEntryOpen: (open) => set({ isNewEntryOpen: open }),
   setChatMode: (mode) => set({ chatMode: mode }),
+  toggleAdminConsole: () => set((s) => ({ isAdminConsoleOpen: !s.isAdminConsoleOpen })),
 }));

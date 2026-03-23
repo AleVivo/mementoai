@@ -18,33 +18,25 @@ Knowledge base conversazionale per team di sviluppo piccoli. Permette di cattura
   - [MongoDB Atlas](https://www.mongodb.com/atlas) (cloud)
   - MongoDB locale con mongot configurato
   - [Docker Desktop](https://www.docker.com/products/docker-desktop/) + `python infra/start.py` — opzione più semplice per lo sviluppo locale (usa `mongodb/mongodb-atlas-local` che include mongot)
-- [Ollama](https://ollama.com/) in esecuzione su `localhost:11434`
 
 ### Frontend (desktop app)
 - [Node.js 20+](https://nodejs.org/)
 - [Rust + cargo](https://rustup.rs/) — toolchain `stable-x86_64-pc-windows-msvc`
 - **Windows:** [Visual C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) con workload *Sviluppo di applicazioni desktop con C++* (richiesto da Rust per il linker `link.exe`)
 
-### Modelli LLM (default locale via LiteLLM + Ollama)
+### LLM Provider
 
-Il backend usa LiteLLM come integrazione unica per chat ed embedding.
-Con la configurazione di default i modelli passano da Ollama locale:
+Il provider LLM è configurato a runtime dalla **admin console** — non richiede modifiche al `.env`.
+
+Il default è **Ollama** in locale. Prima di avviare il backend, assicurati di avere Ollama in esecuzione e i modelli scaricati:
 
 ```bash
-ollama pull qwen2.5:7b
-ollama pull nomic-embed-text
+ollama pull qwen2.5:7b        # chat RAG e agente ReAct
+ollama pull nomic-embed-text  # embedding vettoriale (768 dim)
 ```
 
-| Modello | Uso |
-|---|---|
-| `ollama_chat/qwen2.5:7b` | Generazione risposte RAG e agente ReAct |
-| `ollama/nomic-embed-text` | Embedding vettoriale dei chunk (768 dimensioni) |
-
-> LiteLLM seleziona il provider in base al prefisso del modello.
-> Esempi: `ollama/...`, `openai/...`, `groq/...`.
->
->**Nota per modelli Ollama**
->Il prefisso da utilizzare per i modelli Ollama in locale per RAG e agente ReAct è `ollama_chat` e NON `ollama`. Questo permette di richiamare l'endpoint corretto di Ollama per l'utilizzo di tools e reasoning
+> LiteLLM gestisce il routing verso Ollama, OpenAI e Groq tramite prefisso modello (`ollama/...`, `openai/...`, `groq/...`).
+> Per i modelli Ollama usati in RAG e agente ReAct usa il prefisso `ollama_chat` — non `ollama` — per richiamare l'endpoint corretto con supporto tool e reasoning.
 
 ---
 
@@ -63,22 +55,11 @@ MONGODB_URL=mongodb://<host>:<port>
 MONGODB_USER=<utente>
 MONGODB_PASSWORD=<password>
 MONGODB_DB=memento
-OLLAMA_URL=http://localhost:11434
-LOG_LEVEL=INFO            # DEBUG per log dettagliati con timing, INFO per flusso normale
+LOG_LEVEL=INFO            # DEBUG per log dettagliati, INFO per flusso normale
 JWT_SECRET_KEY=<stringa-casuale-lunga>  # es. openssl rand -hex 32
-
-# Modelli usati da LiteLLM (prefisso provider/modello)
-LLM_MODEL=ollama_chat/qwen2.5:7b
-EMBEDDING_MODEL=ollama/nomic-embed-text
-
-# Opzionale — richiesti solo se usi modelli cloud
-# OPENAI_API_KEY=sk-...
-# GROQ_API_KEY=gsk_...
-
-# Esempi cloud (opzionali)
-# LLM_MODEL=groq/llama-3.3-70b-versatile
-# EMBEDDING_MODEL=openai/text-embedding-3-small
 ```
+
+> **Il file `.env` contiene solo variabili infrastrutturali.** Provider LLM, modelli, API key e observability sono configurati dalla admin console e salvati su MongoDB — non nel `.env`.
 
 > **Il file `.env` non deve mai essere committato su git.** Contiene credenziali sensibili ed è già incluso nel `.gitignore`.
 
@@ -146,13 +127,33 @@ python scripts/seed.py
 | `--reset` | Cancella tutto e reinserisce |
 | `--reset --no-user` | Reinserisce progetto + entry (utenti già presenti) |
 
+Il seed è suddiviso in moduli separati orchestrati da `seed.py`:
+
+| File | Contenuto |
+|---|---|
+| `seed_config.py` | `config_schema` (struttura admin console) + `config_values` con default Ollama |
+| `seed_users.py` | Utenti di test |
+| `seed_project.py` | Progetto + membri |
+| `seed_entries.py` | Entry di demo |
+
 Credenziali di test:
-- `alex@memento.com` / `memento123` — owner del progetto `shopflow`
+- `alex@memento.com` / `memento123` — **admin** + owner del progetto `shopflow`
 - `marco@memento.com` / `memento123` — membro del progetto `shopflow`
 
-> `scripts/seed.py` crea automaticamente l'indice vettoriale `chunks_vector_index` su MongoDB — non è necessario crearlo manualmente.
+> `scripts/seed.py` crea automaticamente l'indice vettoriale `chunks_vector_index` su MongoDB e inserisce la configurazione di default per Ollama — non è necessario configurare nulla manualmente prima del primo avvio.
 
-### 3. Frontend (Tauri desktop app)
+### 3. Admin console (primo avvio)
+
+Il seed inserisce una configurazione di default per Ollama. Per verificarla o modificarla, accedi con `alex@memento.com` (ruolo admin) e apri la admin console.
+
+Da lì puoi configurare:
+- **LLM Provider** — provider e modello per chat RAG e agente (Ollama, OpenAI, Groq)
+- **Embedding Provider** — provider e modello per la vettorializzazione (Ollama, OpenAI)
+- **Observability** — tracing AI con Langfuse (opzionale)
+
+> La configurazione è salvata su MongoDB e applicata immediatamente senza riavviare il backend.
+
+### 4. Frontend (Tauri desktop app)
 
 ```bash
 cd ui
@@ -164,7 +165,7 @@ Alla prima esecuzione Rust compila il layer nativo — richiede 2-5 minuti. Le e
 
 La finestra desktop si apre automaticamente e punta al backend su `http://localhost:8000`.
 
-> **Modifche al codice React** (`.tsx`/`.ts`) si riflettono live via HMR senza ricompilare Rust.  
+> **Modifiche al codice React** (`.tsx`/`.ts`) si riflettono live via HMR senza ricompilare Rust.  
 > **Modifiche a `src-tauri/`** (configurazione Tauri, codice Rust) richiedono ricompilazione automatica.
 
 ### Build produzione
@@ -183,14 +184,24 @@ Produce un installer `.exe` standalone in `ui/src-tauri/target/release/bundle/`.
 ```
 MementoAI/
 ├── app/
-│   ├── main.py           # FastAPI entrypoint + lifespan
+│   ├── main.py           # FastAPI entrypoint + lifespan (avvia run_all_handlers)
 │   ├── config.py         # Settings con pydantic-settings (.env)
-│   ├── models/           # Modelli Pydantic (Entry, Project, ProjectMember, User, Chunk...)
-│   ├── routers/          # Endpoint API (entries, search, chat, agent, auth, project, users)
+│   ├── models/           # Modelli Pydantic (Entry, Project, User, Config...)
+│   ├── routers/          # Endpoint API
+│   │   ├── entries.py
+│   │   ├── search.py
+│   │   ├── chat.py
+│   │   ├── agent.py
+│   │   ├── auth.py
+│   │   ├── project.py
+│   │   ├── users.py
+│   │   └── admin.py      # GET/PUT /admin/config — protetto da require_admin
 │   ├── dependencies/
-│   │   ├── auth.py       # get_current_user — dependency FastAPI per tutti gli endpoint protetti
+│   │   ├── auth.py       # get_current_user + require_admin
 │   │   ├── entries.py    # Validazione accesso entry per progetto
 │   │   └── project.py    # Validazione membership progetto
+│   ├── handlers/
+│   │   └── config_handlers.py  # Dispatch table SECTION_HANDLERS — reload provider LLM e observability
 │   ├── services/
 │   │   ├── ai/           # Logica AI: RAG, ricerca semantica, agente ReAct
 │   │   │   ├── rag_service.py    # Ricerca chunk + costruzione prompt + streaming SSE
@@ -201,29 +212,37 @@ MementoAI/
 │   │   ├── domain/       # Business logic di dominio
 │   │   │   ├── entry_service.py   # CRUD entry + pipeline di indicizzazione
 │   │   │   ├── project_service.py # CRUD progetti + gestione membri
-│   │   │   └── auth_service.py    # JWT, hashing argon2, build_token_response
-│   │   ├── processing/   # Pipeline di trasformazione dati
+│   │   │   ├── auth_service.py    # JWT, hashing argon2, build_token_response
+│   │   │   └── config_service.py  # Merge schema+values, validazione, cifratura secret
+│   │   ├── processing/
 │   │   │   ├── chunker.py        # HTML → chunk per heading, max 300 token
-│   │   │   └── embedder.py       # Thin wrapper → llm.factory.get_embedding_provider().embed()
+│   │   │   └── embedder.py
 │   │   └── llm/          # Astrazione LLM (pattern Strategy)
-│   │       ├── base.py           # ABC: EmbeddingProvider, ChatProvider, ToolChatProvider
-│   │       ├── factory.py        # Espone provider concreti (LiteLLMEmbeddingProvider / LiteLLMChatProvider)
-│   │       └── litellm_provider.py # Integrazione unica LiteLLM per chat, tool-calling ed embedding
+│   │       ├── base.py
+│   │       ├── factory.py          # Re-export da provider_cache (backward compat)
+│   │       ├── provider_cache.py   # Singleton in memoria — aggiornabile a runtime
+│   │       └── litellm_provider.py # LiteLLMChatProvider / LiteLLMEmbeddingProvider
+│   ├── utils/
+│   │   └── encryption.py   # Fernet AES-128 — encrypt/decrypt/mask_secret
 │   └── db/
-│       ├── client.py      # Singleton AsyncMongoClient — get_client(), get_db(), close_client()
-│       ├── indexes.py     # Creazione indici MongoDB all'avvio
+│       ├── client.py
 │       └── repositories/
 │           ├── entry_repository.py   # CRUD collection entries
 │           ├── project_repository.py # CRUD collection projects + project_members
 │           ├── users_repository.py   # CRUD collection users
-│           └── chunks_repository.py  # insert/delete/vector search collection chunks
+│           ├── chunks_repository.py  # insert/delete/vector search collection chunks
+│           └── config_repository.py  # get/upsert config_schema e config_values
 ├── infra/                # Script per la gestione del container MongoDB
 │   ├── docker_mongo.py   # Lifecycle container (pull, run, start, stop, health check)
 │   ├── docker-compose.yaml # Compose alternativo per gestione manuale
 │   ├── start.py          # python infra/start.py — avvia il container
 │   └── stop.py           # python infra/stop.py — ferma il container
 ├── scripts/
-│   └── seed.py           # Popola il DB con dati di test e crea l'indice vettoriale
+│   ├── seed.py           # Orchestratore — chiama i moduli seed_*, popola il DB con dati di test e crea l'indice vettoriale
+│   ├── seed_config.py    # config_schema + config_values default Ollama
+│   ├── seed_users.py     # Utenti di test
+│   ├── seed_project.py   # Progetto + membri
+│   └── seed_entries.py   # Entry di demo
 ├── docs/
 │   ├── architecture.md   # Architettura del sistema, domain model, data flow, auth
 │   └── frontend-spec.md  # Spec frontend: stack, struttura, TypeScript types, UX behaviors
@@ -262,11 +281,14 @@ MementoAI/
 | `GET` | `/entries` | Lista entries con filtri (`project_id`, `type`, `week`, `limit`, `skip`) |
 | `GET` | `/entries/{id}` | Singola entry per ID |
 | `PUT` | `/entries/{id}` | Aggiorna entry (no LLM — imposta `vector_status: outdated`) |
-| `POST` | `/entries/{id}/index` | Indicizza manualmente: chunking HTML + embedding vettoriale (`nomic-embed-text`) |
+| `POST` | `/entries/{id}/index` | Indicizza manualmente: chunking HTML + embedding vettoriale |
 | `DELETE` | `/entries/{id}` | Elimina entry e relativi chunk |
 | `POST` | `/search` | Ricerca semantica vettoriale sui chunk con score di cosine similarity |
 | `POST` | `/chat` | Chat RAG in streaming SSE — emette eventi `sources` (fonti), `token` (risposta incrementale) e `done`; `project_id` opzionale (omesso = tutta la KB) |
 | `POST` | `/agent` | Chat agente ReAct — usa tool (ricerca, filtri, conteggi) per rispondere in più step; `project_id` opzionale |
+| `GET` | `/admin/config` | Lista tutte le sezioni di configurazione — **solo admin** |
+| `GET` | `/admin/config/{section_id}` | Singola sezione con schema + valori correnti — **solo admin** |
+| `PUT` | `/admin/config/{section_id}` | Aggiorna configurazione + reload provider immediato — **solo admin** |
 
 ---
 
@@ -282,7 +304,7 @@ POST /entries/{id}/index
        - max 300 token per chunk (tokenizer cl100k_base via tiktoken)
        - soglia minima 30 token — chunk più piccoli vengono fusi
        - liste e blocchi codice trattati come unità atomiche
-  3. Embedding di ogni chunk → nomic-embed-text (768 dim)
+  3. Embedding di ogni chunk → provider embedding attivo (default: nomic-embed-text 768 dim)
   4. Salvataggio chunk nella collection MongoDB `chunks`
 ```
 
@@ -335,5 +357,5 @@ db.chunks.getSearchIndexes()
 
 | File | Contenuto |
 |---|---|
-| [docs/architecture.md](docs/architecture.md) | Architettura del sistema, domain model (Entry, Project, User), data flow dettagliato (autenticazione, create/save/index entry, RAG, agent), strategia di autenticazione JWT e project-scoped access control |
+| [docs/architecture.md](docs/architecture.md) | Architettura del sistema, domain model, data flow dettagliato (autenticazione, create/save/index entry, RAG, agent, admin config update), admin console e configurazione dinamica dei provider,  strategia di autenticazione JWT e project-scoped access control | 
 | [docs/frontend-spec.md](docs/frontend-spec.md) | Specifiche frontend: stack tecnologico, struttura directory, TypeScript types, layout UI, configurazione TipTap, comportamenti UX (autosave, indicizzazione, chat, shortcut) |

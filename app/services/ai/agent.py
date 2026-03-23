@@ -7,9 +7,7 @@ Non definisce tool, non definisce mapping — importa tutto dal registry.
 
 import json
 import logging
-from typing import Optional
 
-from app.db.repositories import project_repository
 from app.services.ai import agent_registry
 from app.services.llm.factory import get_chat_provider
 

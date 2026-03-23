@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PanelLeftClose, MessageSquare, LogOut, Settings2, Plus } from "lucide-react";
+import { PanelLeftClose, MessageSquare, LogOut, Settings2, Plus, ShieldCheck } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useEntriesStore } from "@/store/entries.store";
@@ -21,6 +21,7 @@ export function Sidebar() {
   const { user, logout } = useAuthStore();
   const [settingsProject, setSettingsProject] = useState<Project | null>(null);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const { toggleAdminConsole } = useUIStore();
 
   useProjects();
   useEntries();
@@ -30,7 +31,7 @@ export function Sidebar() {
   return (
     <aside className="flex flex-col w-64 shrink-0 h-full border-r border-[var(--border-ui)] bg-[var(--bg-subtle)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-ui)]">
+      <div className="flex items-center justify-between px-4 h-12 border-b border-[var(--border-ui)]">
         <span className="text-sm font-semibold tracking-tight text-foreground">MementoAI</span>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -148,14 +149,29 @@ export function Sidebar() {
           )}
           <span className="text-xs text-[var(--text-muted-ui)] truncate" title={user?.email}>{user?.email}</span>
         </div>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button onClick={logout} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted-ui)] transition-colors">
-              <LogOut size={14} />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>Logout</TooltipContent>
-        </Tooltip>
+        <div>
+        {user?.role === "admin" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={toggleAdminConsole}
+                className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted-ui)] transition-colors"
+              >
+                <ShieldCheck size={14} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Admin console</TooltipContent>
+          </Tooltip>
+          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button onClick={logout} className="p-1.5 rounded-md hover:bg-[var(--bg-hover)] text-[var(--text-muted-ui)] transition-colors">
+                <LogOut size={14} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>Logout</TooltipContent>
+          </Tooltip>
+        </div>
       </div>
 
       {/* Project settings dialog */}
