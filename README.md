@@ -149,7 +149,7 @@ Il seed inserisce una configurazione di default per Ollama. Per verificarla o mo
 Da lì puoi configurare:
 - **LLM Provider** — provider e modello per chat RAG e agente (Ollama, OpenAI, Groq)
 - **Embedding Provider** — provider e modello per la vettorializzazione (Ollama, OpenAI)
-- **Observability** — tracing AI con Langfuse (opzionale)
+- **Observability** — tracing AI con Langfuse (opzionale, vedi sezione dedicata)
 
 > La configurazione è salvata su MongoDB e applicata immediatamente senza riavviare il backend.
 
@@ -179,6 +179,45 @@ Produce un installer `.exe` standalone in `ui/src-tauri/target/release/bundle/`.
 
 ---
 
+## Observability (opzionale)
+
+MementoAI supporta il tracing AI tramite **Langfuse** self-hosted. Quando abilitato, ogni chiamata alla pipeline RAG e all'agente ReAct viene tracciata con latenze, token count e gerarchia delle span.
+
+### Setup Langfuse
+
+Avvia Langfuse in locale con Docker Compose (fornito da Langfuse):
+
+```bash
+# Dalla directory di Langfuse
+docker compose up -d
+```
+
+La dashboard è disponibile su `http://localhost:3000`. Al primo avvio crea un account, una organization e un progetto, poi genera le API keys da **Settings → API Keys**.
+
+### Configurazione in MementoAI
+
+Dalla admin console (`alex@memento.com`), sezione **Observability**:
+
+| Campo | Valore |
+|---|---|
+| Provider | `langfuse` |
+| Host | `http://localhost:3000` (o l'IP della macchina che ospita Langfuse) |
+| Public Key | `pk-lf-...` (dalla dashboard Langfuse) |
+| Secret Key | `sk-lf-...` (dalla dashboard Langfuse) |
+
+La configurazione è applicata immediatamente senza riavvio. Per disabilitare il tracing, imposta il provider su `none`.
+
+### Cosa viene tracciato
+
+| Trace | Contenuto |
+|---|---|
+| `execute_rag` | Pipeline RAG completa: vector search, costruzione contesto, chiamata LLM |
+| `generate_embedding` | Ogni chiamata embedding con model e token count |
+| `agent_step` | Ogni step del loop ReAct: reasoning, tool chiamato, argomenti, risultato |
+| `litellm_request` | Ogni chiamata LLM con prompt, risposta, token, latenza (span figlia automatica) |
+
+---
+
 ## Struttura del progetto
 
 ```
@@ -202,6 +241,8 @@ MementoAI/
 │   │   └── project.py    # Validazione membership progetto
 │   ├── handlers/
 │   │   └── config_handlers.py  # Dispatch table SECTION_HANDLERS — reload provider LLM e observability
+│   ├── observability/
+│   │   └── langfuse_integration.py  # Lifecycle Langfuse: setup, teardown, flush, is_active
 │   ├── services/
 │   │   ├── ai/           # Logica AI: RAG, ricerca semantica, agente ReAct
 │   │   │   ├── rag_service.py    # Ricerca chunk + costruzione prompt + streaming SSE
@@ -216,7 +257,7 @@ MementoAI/
 │   │   │   └── config_service.py  # Merge schema+values, validazione, cifratura secret
 │   │   ├── processing/
 │   │   │   ├── chunker.py        # HTML → chunk per heading, max 300 token
-│   │   │   └── embedder.py
+│   │   │   └── embedder.py       # generate_embedding (@observe) — thin wrapper su provider
 │   │   └── llm/          # Astrazione LLM (pattern Strategy)
 │   │       ├── base.py
 │   │       ├── factory.py          # Re-export da provider_cache (backward compat)

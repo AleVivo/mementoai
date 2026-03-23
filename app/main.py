@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.db.client import close_client, get_client
 from app.handlers import config_handlers
+from app.observability import langfuse_integration
 from app.routers import admin, entries, search, chat, agent, auth, project, users
 from app.config import settings
 from app.services.llm import provider_cache
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("MementoAI shutting down...")
+    await langfuse_integration.flush()  # ← flush trace pendenti prima di chiudere
     await close_client()
 
 

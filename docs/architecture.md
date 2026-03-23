@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-22
+last_updated: 2026-03-23
 ---
 
 # MementoAI — Architecture
@@ -32,7 +32,7 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
                    │ HTTP localhost:8000
 ┌──────────────────▼──────────────────────────────────────────────────────────┐
 │  Backend (FastAPI — Python)                                                 │
-│  POST /auth/register     ← registrazione utente                             │  
+│  POST /auth/register     ← registrazione utente                             │
 |  POST /auth/login        ← login → JWT access                               |
 |  POST /auth/refresh      ← rinnovo token (token rotation)                   |
 │  GET  /projects          ← lista progetti dell'utente                       │
@@ -70,7 +70,7 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 
 ## Backend
 
-**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, pydantic-settings, PyJWT, pwdlib[argon2], litellm, cryptography
+**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, pydantic-settings, PyJWT, pwdlib[argon2], litellm, langfuse, cryptography
 
 ### Domain Model
 
@@ -159,7 +159,7 @@ Il package `services/` è organizzato per responsabilità:
 
 **`services/processing/`** — servizi di trasformazione dati
 - `chunker` — parsing HTML TipTap → chunk per heading, max 300 token (cl100k_base / tiktoken)
-- `embedder` — thin wrapper: delega a `llm.factory.get_embedding_provider().embed()`
+- `embedder` — `generate_embedding` (`@observe as_type="generation"`) — thin wrapper su provider embedding
 
 **`services/llm/`** — provider LLM (pattern Strategy)
 - `base` — ABC: `EmbeddingProvider`, `ChatProvider`, `ToolChatProvider`
@@ -168,7 +168,10 @@ Il package `services/` è organizzato per responsabilità:
 - `litellm_provider` — `LiteLLMChatProvider(model, api_base, api_key)` e `LiteLLMEmbeddingProvider(model, api_base, api_key)`
 
 **`handlers/`** — handler di reload configurazione
-- `config_handlers` — dispatch table `SECTION_HANDLERS`: ogni sezione ha un handler che legge `config_values` da MongoDB e aggiorna `provider_cache`; `run_all_handlers()` chiamato dal lifespan all'avvio
+- `config_handlers` — dispatch table `SECTION_HANDLERS`: ogni sezione ha un handler che legge `config_values` da MongoDB e aggiorna `provider_cache` o `langfuse_integration`; `run_all_handlers()` chiamato dal lifespan all'avvio
+
+**`observability/`** — tracing AI
+- `langfuse_integration` — lifecycle Langfuse: `setup()`, `teardown()`, `flush()`, `is_active()`; gestito come singleton di modulo; attivato da `config_handlers` a runtime
 
 **`utils/`** — utility trasversali
 - `encryption` — cifratura simmetrica Fernet (AES-128) derivata da `JWT_SECRET_KEY` via SHA-256; `encrypt()`, `decrypt()`, `mask_secret()`
@@ -194,10 +197,14 @@ Admin → PUT /admin/config/{section_id} { values: {...} }
 ```
 lifespan
   → run_all_handlers()   ← esegue tutti gli handler registrati in sequenza
-      → llm handler      ← inizializza chat provider
-      → embedding handler ← inizializza embedding provider
+      → llm handler        ← inizializza chat provider
+      → embedding handler  ← inizializza embedding provider
       → observability handler ← configura Langfuse se abilitato
   → se un provider non ha config_values → RuntimeError esplicito alla prima chiamata AI
+
+shutdown
+  → langfuse_integration.flush()  ← svuota la coda di trace pendenti prima di chiudere
+  → close_client()                ← chiude la connessione MongoDB
 ```
 
 **Sezioni configurabili:**
@@ -231,6 +238,47 @@ config_values (MongoDB)
 | `openai/gpt-4o-mini` | OpenAI | Chat RAG e agente (alternativa cloud) |
 | `openai/text-embedding-3-small` | OpenAI | Embedding (1536 dim — richiede re-indicizzazione se si cambia da Ollama) |
 | `groq/llama-3.3-70b-versatile` | Groq | Chat RAG e agente (alternativa cloud) |
+
+### Observability — Langfuse
+
+Il tracing AI è opzionale e configurabile a runtime dalla admin console. Quando abilitato, strumenta la pipeline RAG e l'agente ReAct senza impatto sul comportamento funzionale.
+
+**Architettura del tracing:**
+
+```
+config_values (MongoDB)
+  └─ config_handlers._handle_observability()
+       └─ langfuse_integration.setup(host, public_key, secret_key)
+            ├─ LANGFUSE_HOST / LANGFUSE_OTEL_HOST / LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY
+            └─ litellm.callbacks = ["langfuse_otel"]  ← trace automatici per ogni chiamata LiteLLM
+```
+
+**Gerarchia dei trace in Langfuse:**
+
+```
+execute_rag                     ← @observe — pipeline RAG completa
+  └─ generate_embedding         ← @observe as_type="generation"
+       └─ litellm_request       ← automatico via langfuse_otel (model, tokens, latency)
+
+run_agent_stream (root span)    ← start_observation manuale (generator SSE)
+  ├─ agent_step                 ← @observe — ogni iterazione ReAct
+  │    └─ litellm_request       ← automatico via langfuse_otel
+  └─ agent_step (final)
+       └─ litellm_request
+```
+
+Le chiamate LiteLLM (`acompletion`, `aembedding`) diventano span figlie automaticamente grazie al contesto OpenTelemetry propagato da `@observe`. Non è necessario strumentare `litellm_provider.py` — il tracing è trasparente.
+
+**Separazione logica / trasporto SSE:**
+
+`rag_service` e `agent` separano la logica AI dal trasporto SSE perché `@observe` non supporta `AsyncGenerator` (funzioni con `yield`). La logica tracciabile è in funzioni normali (`_execute_rag`, `_run_agent_step`); il trasporto SSE è in generator separati (`stream_rag`, `run_agent_stream`) che li orchestrano.
+
+**Lifecycle:**
+
+- `setup()` — chiamato da `config_handlers` quando l'admin abilita Langfuse; idempotente
+- `teardown()` — chiamato quando il provider viene impostato su `none`; rimuove credenziali e callback
+- `flush()` — chiamato nel lifespan FastAPI allo shutdown per non perdere trace in coda
+- `is_active()` — usato dai servizi per decidere se aprire span manuali
 
 ## Frontend
 
@@ -331,6 +379,7 @@ PUT /admin/config/{section_id} { values: { provider, model, api_key, ... } }
   → config_handlers.run_handler(section_id):
       → get_decrypted_values() ← legge DB con secret in chiaro
       → istanzia nuovo provider (LiteLLMChatProvider / LiteLLMEmbeddingProvider)
+        oppure chiama langfuse_integration.setup() / teardown()
       → provider_cache.set_*_provider() ← aggiorna singleton
   → Response: ConfigSectionResponse (schema + values merged, secret mascherati)
 ```
@@ -359,6 +408,7 @@ POST /entries/:id/index  (trigger: manuale tramite pulsante "Indicizza" nella to
   → Backend: legge content corrente
   → chunker   → divide HTML in chunk per heading (max 300 token)
   → embedding → vettore per ogni chunk (provider_cache.get_embedding_provider())
+               → generate_embedding() tracciata con @observe se Langfuse attivo
   → MongoDB:  - cancella chunk precedenti
               - inserisce nuovi chunk con embedding nella collection `chunks`
               - imposta vector_status = "indexed"
@@ -382,13 +432,16 @@ User types in search box
 ```
 User types question in chat panel (modalità RAG)
   → POST /chat { question, project? }
-  → Backend: query embedded (provider_cache.get_embedding_provider())
-           → vector search sui chunk (collection `chunks`)
-           → top-k chunk recuperati
-           → SSE stream aperto:
-               data: {"type":"sources","sources":[...]}
-               data: {"type":"token","content":"..."}
-               data: {"type":"done"}
+  → Backend:
+      _execute_rag() [@observe]
+        → query embedded (generate_embedding [@observe])
+        → vector search sui chunk (collection `chunks`)
+        → top-k chunk recuperati + contesto costruito
+      stream_rag() [SSE transport]
+        → SSE stream aperto:
+            data: {"type":"sources","sources":[...]}
+            data: {"type":"token","content":"..."}   ← streaming LLM
+            data: {"type":"done"}
   → Answer rendered as markdown in chat bubble
 ```
 
@@ -396,16 +449,20 @@ User types question in chat panel (modalità RAG)
 ```
 User types question in chat panel (modalità Agent)
   → POST /agent { question, project?, max_steps }
-  → Backend: loop ReAct — max max_steps iterazioni con stream=True
-       1. LLM ragiona sull'input (streaming tokens come 'reasoning')
-       2. Sceglie un tool dal registry
-       3. Esegue il tool → evento 'step' al client
-       4. Ripete finché ha risposta o raggiunge max_steps
-  → SSE stream:
-       data: {"type":"reasoning","content":"..."}
-       data: {"type":"step","tool":"...","args":{},"result":{}}
-       data: {"type":"token","content":"..."}
-       data: {"type":"done","steps":[...],"model":"..."}
+  → Backend:
+      run_agent_stream() [root span manuale + SSE transport]
+        → loop ReAct — max max_steps iterazioni:
+            _run_agent_step() [@observe]
+              1. LLM ragiona sull'input
+              2. Sceglie un tool dal registry
+              3. Esegue il tool
+            → evento 'step' al client
+        → risposta finale in streaming
+      → SSE stream:
+          data: {"type":"reasoning","content":"..."}
+          data: {"type":"step","tool":"...","args":{},"result":{}}
+          data: {"type":"token","content":"..."}
+          data: {"type":"done","steps":[...],"model":"..."}
 ```
 
 ## Deployment
@@ -416,6 +473,7 @@ The application runs fully locally — no mandatory cloud dependencies:
 - FastAPI starts on `localhost:8000` (launched by Tauri sidecar or separately during development)
 - MongoDB runs locally via Docker container (see `infra/`)
 - LLM provider is configured via the admin console — Ollama (local, default) or cloud providers (OpenAI, Groq) are optional and set at runtime without `.env` changes or restarts
+- Langfuse tracing is optional — disabled by default, enabled from the admin console without restart
 
 **`.env` contains infrastructure only** — secrets and URLs that cannot change at runtime:
 

@@ -1,6 +1,8 @@
 import json
 import logging
 import time
+
+from langfuse import observe, get_client
 from app.models.chat import ChatRequest
 from app.models.chunk import ChunkSearchResult
 from app.models.user import UserResponse
@@ -50,17 +52,21 @@ def _build_context_message(question: str, results: list[ChunkSearchResult]) -> s
 
     return f"CONTESTO:\n{context}\n\nDOMANDA: {question}"
 
-
-async def stream_rag(request: ChatRequest, current_user: UserResponse):
+@observe(name="execute_rag")
+async def _execute_rag(
+    question: str,
+    project_id: str | None,
+    top_k: int,
+    current_user: UserResponse,
+) -> tuple[list[dict], AsyncGenerator[str, None]]:
     t0 = time.perf_counter()
-    logger.info(f"[chat] START — question: {request.question!r}, project: {request.project_id!r}")
-    search_request = SearchRequest(
-        query=request.question,
-        top_k=request.top_k,
-    )
+    logger.info(f"[rag] START — question: {question!r}, project: {project_id!r}")
+ 
+    # vector_search_chunks è @observe — diventa span figlia automaticamente
+    search_request = SearchRequest(query=question, top_k=top_k)
     results = await search_service.vector_search_chunks(search_request, current_user)
-    logger.info(f"[chat] Vector search done — {len(results)} chunk(s) retrieved ({time.perf_counter()-t0:.2f}s)")
-
+    logger.info(f"[rag] Vector search done — {len(results)} chunk(s) ({time.perf_counter()-t0:.2f}s)")
+ 
     sources = [
         {
             "entry_id": str(chunk.entry_id),
@@ -70,17 +76,49 @@ async def stream_rag(request: ChatRequest, current_user: UserResponse):
         }
         for chunk in results
     ]
-    yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
-
-    user_message = _build_context_message(request.question, results)
+ 
+    user_message = _build_context_message(question, results)
     provider = get_chat_provider()
-
-    async for token in provider.stream_chat(
+ 
+    # Aggiorna la span con metadata utili per la dashboard
+    langfuse = get_client()
+    langfuse.update_current_span(
+        input={"question": question, "project_id": project_id},
+        metadata={
+            "chunks_retrieved": len(results),
+            "sources_count": len(sources),
+            "model": getattr(provider, "model", "unknown"),
+        },
+    )
+ 
+    # Ritorna il generator LLM — i token vengono consumati da stream_rag
+    token_stream = provider.stream_chat(
         messages=[{"role": "user", "content": user_message}],
         system_prompt=RAG_SYSTEM_PROMPT,
-    ):
+    )
+ 
+    return sources, token_stream
+
+async def stream_rag(
+    request: ChatRequest,
+    current_user: UserResponse,
+) -> AsyncGenerator[str, None]:
+    t0 = time.perf_counter()
+ 
+    sources, token_stream = await _execute_rag(
+        question=request.question,
+        project_id=request.project_id,
+        top_k=request.top_k,
+        current_user=current_user,
+    )
+ 
+    # Emette le sorgenti prima dei token — il FE le mostra subito
+    yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+ 
+    # Emette i token man mano che arrivano dall'LLM
+    async for token in token_stream:
         yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
-
+ 
     yield f"data: {json.dumps({'type': 'done'})}\n\n"
-
-    logger.info(f"[chat] STREAM DONE — total time: {time.perf_counter()-t0:.2f}s")
+ 
+    logger.info(f"[rag] STREAM DONE — total time: {time.perf_counter()-t0:.2f}s")

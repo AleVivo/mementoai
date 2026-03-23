@@ -2,6 +2,7 @@ import logging
 import time
 
 from fastapi import HTTPException, status
+from langfuse import get_client, observe
 
 from app.models.search import SearchRequest
 from app.models.chunk import ChunkSearchResult

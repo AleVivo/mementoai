@@ -18,6 +18,7 @@ import logging
 import os
 from typing import Any, Callable, Coroutine, Optional
 
+from app.observability import langfuse_integration
 from app.services.llm import litellm_provider
 from app.services.llm import provider_cache
 
@@ -82,6 +83,7 @@ async def _handle_observability(values: dict[str, Any]) -> None:
 
     if obs_provider == "none":
         logger.info("[config_handlers] observability — disabilitata")
+        langfuse_integration.teardown()
         return
 
     if obs_provider == "langfuse":
@@ -96,10 +98,14 @@ async def _handle_observability(values: dict[str, Any]) -> None:
         assert isinstance(host, str)
         assert isinstance(public_key, str)  
         assert isinstance(secret_key, str)
-        os.environ["LANGFUSE_HOST"] = host
-        os.environ["LANGFUSE_PUBLIC_KEY"] = public_key
-        os.environ["LANGFUSE_SECRET_KEY"] = secret_key
-        logger.info(f"[config_handlers] observability — langfuse configurato: {host}")
+        langfuse_integration.setup(
+            host=host,
+            public_key=public_key,
+            secret_key=secret_key
+        )
+        return
+
+    logger.warning(f"[config_handlers] observability — provider sconosciuto: '{obs_provider}', skip")
 
 
 # ---------------------------------------------------------------------------
