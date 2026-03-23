@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-20
+last_updated: 2026-03-23
 ---
 
 # MementoAI — Frontend Specification
@@ -34,11 +34,16 @@ ui/                          ← Tauri frontend root
 │   │   ├── projects.ts      ← /projects API calls (CRUD + member management)
 │   │   ├── users.ts         ← /users/search API call (lookup per email)
 │   │   ├── search.ts        ← /search API calls
-│   │   └── chat.ts          ← /chat e /agent API calls
+│   │   ├── chat.ts          ← /chat e /agent API calls
+│   │   └── admin.ts         ← /admin/config API calls (getAllConfig, getConfigSection, updateConfigSection)
 │   ├── components/
 │   │   ├── layout/
-│   │   │   ├── Sidebar.tsx         ← Left nav: projects (da API) + entries list
+│   │   │   ├── Sidebar.tsx         ← Left nav: projects + entries list + admin button (admin only)
 │   │   │   └── MainPanel.tsx       ← Right area: editor or search results
+│   │   ├── admin/
+│   │   │   ├── AdminConsole.tsx    ← Pagina scrollabile che sostituisce MainPanel quando isAdminOpen
+│   │   │   ├── AdminSection.tsx    ← Card per singola sezione config (form + save button)
+│   │   │   └── AdminField.tsx      ← Field dinamico (text, secret, select, toggle)
 │   │   ├── editor/
 │   │   │   ├── EntryEditor.tsx     ← TipTap editor (autosave 1.5s; index SOLO manuale)
 │   │   │   ├── EditorToolbar.tsx   ← Toolbar formattazione + pulsante "Indicizza" manuale
@@ -63,7 +68,7 @@ ui/                          ← Tauri frontend root
 │   ├── store/
 │   │   ├── entries.store.ts        ← Zustand: entries state + actions
 │   │   ├── projects.store.ts       ← Zustand: lista progetti + actions
-│   │   ├── ui.store.ts             ← Zustand: sidebar open, active entry, chat open, dirty/saving/indexing state, chatMode (rag|agent)
+│   │   ├── ui.store.ts             ← Zustand: sidebar open, active entry, chat open, dirty/saving/indexing state, chatMode, isAdminConsoleOpen
 │   │   ├── auth.store.ts           ← Zustand: token, refreshToken, user; persistiti in localStorage
 │   │   └── chat.store.ts           ← Zustand: messages per projectId (chiave "__all__" per scope globale)
 │   ├── hooks/
@@ -214,26 +219,119 @@ export type AgentSSEEvent =
   | { type: 'step';      tool: string; args: Record<string, unknown>; result: unknown }
   | { type: 'done';      steps: AgentStep[]; model: string }
   | { type: 'error';     message: string };
+
+// #### AUTH TYPES ####
+
+export interface User {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  company: string;
+  role: 'user' | 'admin';  // ruolo a livello di sistema
+  created_at: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  user: User;
+}
+
+// #### ADMIN TYPES ####
+
+export type FieldType = 'text' | 'secret' | 'select' | 'toggle';
+export type SectionType = 'integration' | 'settings';
+export type ConfigStatus = 'unknown' | 'active' | 'error';
+
+export interface SelectOption {
+  value: string;
+  label: string;
+}
+
+export interface DependsOn {
+  field: string;
+  options: Record<string, SelectOption[]>;
+}
+
+export interface RequiredIf {
+  field: string;
+  in?: string[];
+  not_in?: string[];
+}
+
+export interface SchemaField {
+  key: string;
+  label: string;
+  type: FieldType;
+  required?: boolean;
+  required_if?: RequiredIf;
+  placeholder?: string;
+  options?: SelectOption[];
+  depends_on?: DependsOn;
+  value: string | boolean | null;
+}
+
+export interface ConfigSection {
+  id: string;
+  type: SectionType;
+  label: string;
+  description?: string;
+  fields: SchemaField[];
+  status?: ConfigStatus;
+  status_message?: string;
+  last_tested_at?: string;
+  updated_at?: string;
+  updated_by?: string;
+}
+
+export interface ConfigUpdateRequest {
+  values: Record<string, string | boolean | null>;
+}
 ```
 
 ## Layout Design
 
 ```
-┌─────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────┐
 │ ●  MementoAI                                    [Chat ▶] │  ← Titlebar
-├────────────┬────────────────────────────────────────────┤
-│  Projects  │  [🔍 Search entries...]                    │  ← Search bar
-│  ──────── │  ──────────────────────────────────────────│
-│  ▼ backend │                                            │
-│    ADR-001 │   Title: Service Mesh ADR              ... │  ← Active entry
-│    PM-003  │   Project: backend  Type: [ADR]  Author:.. │
-│    UP-012  │   Tags: [mesh] [infra] [aws]               │
-│  ▶ mobile  │   ────────────────────────────────────     │
-│  ▶ data    │                                            │
-│            │   [Block editor content here — TipTap]    │
-│  ──────── │                                            │
-│  [+ New]   │                                            │
-│            │                             [Save  Cmd+S] │
+├────────────┬─────────────────────────────────────────────┤
+│  Projects  │  [🔍 Search entries...]                     │  ← Search bar
+│  ────────  │  ───────────────────────────────────────────│
+│  ▼ backend │                                             │
+│    ADR-001 │   Title: Service Mesh ADR               ... │  ← Active entry
+│    PM-003  │   Project: backend  Type: [ADR]   Author:.. │
+│    UP-012  │   Tags: [mesh] [infra] [aws]                │
+│  ▶ mobile  │   ────────────────────────────────────      │
+│  ▶ data    │                                             │
+│            │   [Block editor content here — TipTap]      │
+│  ────────  │                                             │
+│  [+ New]   │                                             │
+│            │                             [Save  Cmd+S]   │
+└────────────┴─────────────────────────────────────────────┘
+```
+
+**Admin console** sostituisce MainPanel quando `isAdminOpen = true`:
+```
+┌────────────┬────────────────────────────────────────────┐
+│  Projects  │  ⚙ Admin Console                           │
+│  ────────  │  ──────────────────────────────────────────│
+│  ...       │                                            │
+│            │  ┌──────────────────────────────────────┐  │
+│            │  │ LLM Provider              [● Attivo] │  │
+│            │  │ Configurazione modello...            │  │
+│            │  │ Provider  [Ollama ▾]                 │  │
+│            │  │ Host      [http://localhost:11434]   │  │
+│            │  │ Modello   [Qwen 2.5 7B ▾]            │  │
+│            │  │                           [ Salva ]  │  │
+│            │  └──────────────────────────────────────┘  │
+│            │  ┌─────────────────────────────────────┐   │
+│            │  │ Embedding Provider                  │   │
+│            │  │ ...                                 │   │
+│            │  └─────────────────────────────────────┘   │
+│  ────────  │                                            │
+│  [⚙️ Admin]│                                            │
 └────────────┴────────────────────────────────────────────┘
 ```
 
@@ -319,6 +417,17 @@ Extensions to enable for Notion-like experience:
 | indexing in corso | `⟳ Indicizzazione...` (spinner amber, pulsante disabilitato) |
 | `indexed` | `✓ Indicizzato` (verde, scompare dopo 3s) |
 
+### Admin Console
+- Accessibile solo agli utenti con `role: "admin"` — il pulsante `ShieldCheck` nel footer della sidebar non viene renderizzato per gli altri utenti
+- `isAdminOpen` nello store UI — quando `true` sostituisce `MainPanel` con `AdminConsole`
+- Selezionare una entry dalla sidebar chiude automaticamente la console (`setActiveEntryId` resetta `isAdminOpen`)
+- Le sezioni sono renderizzate dinamicamente dal backend (`GET /admin/config`) — aggiungere una nuova sezione su MongoDB non richiede modifiche al frontend
+- Ogni sezione è una card indipendente con il proprio stato locale — il salvataggio avviene per sezione, non globalmente
+- I campi `secret` mostrano `***` se già impostati, `null` se mai configurati — il valore reale non viene mai esposto
+- Cambiare il valore di un campo resetta automaticamente tutti i campi che dipendono da esso (`depends_on` e `required_if`) — logica generica, non specifica per provider
+- Il bottone Salva è disabilitato se ci sono campi obbligatori vuoti (validazione `required` e `required_if`)
+- Il badge di stato (`unknown` / `active` / `error`) viene aggiornato dopo ogni salvataggio dalla response del backend
+
 ### Zustand UI Store
 ```typescript
 interface UIStore {
@@ -330,7 +439,7 @@ interface UIStore {
   isChatOpen: boolean;
   isSidebarOpen: boolean;
   isNewEntryOpen: boolean;   // new entry dialog open
-  isNewProjectOpen: boolean; // new project dialog open
+  isAdminOpen: boolean;      // admin console aperta — sostituisce MainPanel
   chatMode: 'rag' | 'agent';
 }
 ```
@@ -339,7 +448,7 @@ interface UIStore {
 ```
 ┌────────────────────────────────────────────────────────────┐
 │  Service Mesh ADR   ●                                      │
-│                              ⚠ Not indexed   [⟳ Index]   │
+│                              ⚠ Not indexed   [⟳ Index]    │
 │                                               [Save Cmd+S] │
 └────────────────────────────────────────────────────────────┘
 ```
