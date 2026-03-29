@@ -4,31 +4,47 @@ from datetime import datetime
 from bson import ObjectId
 from app.models.types import PyObjectId
 
-class ChunkDocument(BaseModel):
-    id: Optional[PyObjectId] = Field(default=None, alias="_id")
-    entry_id: ObjectId
-    chunk_index: int # indice del chunk all'interno dell'entry
-    heading: Optional[str] = None
-    text: str
-    token_count: int = 0
-    embedding: list[float] = []
-    project_id: str
-    entry_type: str
-    entry_title: str
-    created_at: datetime
+# ---------------------------------------------------------------------------
+# Documento salvato su MongoDB da LlamaIndex
+#
+# LlamaIndex scrive documenti con questa struttura flat:
+#   {
+#     "id":        str   ← UUID generato da LlamaIndex (non ObjectId)
+#     "embedding": list[float]
+#     "text":      str
+#     "metadata":  dict  ← tutti i nostri campi custom vanno qui
+#   }
+#
+# Non esiste più un modello Pydantic per il documento grezzo perché
+# LlamaIndex gestisce insert/read internamente tramite MongoDBAtlasVectorSearch.
+# Questo file espone solo il modello di risposta verso i consumer (RAG, search,
+# agent tools) e le costanti dei campi metadata.
+# ---------------------------------------------------------------------------
 
-    model_config = {"arbitrary_types_allowed": True, "populate_by_name": True}
+class MetadataFields:
+    """
+    Costanti per i nomi dei campi dentro metadata{}.
+    Usate da chunks_repository e retrieval/index.py per evitare stringhe
+    sparse nel codice.
+    """
+    ENTRY_ID    = "entry_id"       # str (ObjectId serializzato come stringa)
+    PROJECT_ID  = "project_id"     # str — campo indicizzato per pre-filter
+    ENTRY_TYPE  = "entry_type"     # "adr" | "postmortem" | "update"
+    ENTRY_TITLE = "entry_title"    # str
+    HEADING     = "heading"        # str | None — heading TipTap del chunk
+    CHUNK_INDEX = "chunk_index"    # int — posizione del chunk nell'entry
+    CREATED_AT  = "created_at"     # str ISO 8601
 
 class ChunkSearchResult(BaseModel):
-    chunk_id: PyObjectId
-    entry_id: PyObjectId
+    node_id:     str            # id LlamaIndex (UUID stringa)
+    entry_id:    str            # ObjectId serializzato come stringa
     chunk_index: int
-    heading: Optional[str]
-    text: str
-    score: float
+    heading:     Optional[str]
+    text:        str
+    score:       float
     entry_title: str
-    project_id: str
-    entry_type: str
+    project_id:  str
+    entry_type:  str
 
     model_config = {"arbitrary_types_allowed": True}
         

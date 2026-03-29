@@ -15,12 +15,13 @@ il router chiama questo senza sapere cosa c'è dentro.
 """
 
 import logging
-import os
 from typing import Any, Callable, Coroutine, Optional
 
 from app.observability import langfuse_integration
 from app.services.llm import litellm_provider
 from app.services.llm import provider_cache
+from app.services.retrieval.adapter import configure_llamaindex_settings
+from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,8 @@ async def _handle_embedding(values: dict[str, Any]) -> None:
         api_base=api_base,
         api_key=api_key
     ))
+    configure_llamaindex_settings()
+
     logger.info(f"[config_handlers] embedding — provider aggiornato: {model_string}")
 
 

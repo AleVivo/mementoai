@@ -3,13 +3,12 @@ import os
 from typing import Optional
 
 import litellm
+from llama_index.core import set_global_handler
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Stato modulo-level — privato, non importare dall'esterno
-# ---------------------------------------------------------------------------
 _active: bool = False
+_llamaindex_instrumentor_active: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -18,21 +17,22 @@ _active: bool = False
 
 def setup(host: str, public_key: str, secret_key: str) -> None:
     """Attiva il tracing Langfuse via OpenTelemetry.
-
-    Idempotente: può essere chiamata più volte (es. aggiornamento config
-    a runtime dall'admin console) senza effetti collaterali.
-    Se era già attiva, aggiorna le credenziali e lascia il callback invariato.
     """
-    global _active
+    global _active, _llamaindex_instrumentor_active
 
-    # Imposta le variabili d'ambiente richieste dall'integrazione OTEL.
-    # Nota: il metodo OTEL usa LANGFUSE_OTEL_HOST, non LANGFUSE_HOST.
-    os.environ["LANGFUSE_OTEL_HOST"] = host
-    os.environ["LANGFUSE_HOST"] = host
+    os.environ["LANGFUSE_BASE_URL"] = host
     os.environ["LANGFUSE_PUBLIC_KEY"] = public_key
     os.environ["LANGFUSE_SECRET_KEY"] = secret_key
+    os.environ["LANGFUSE_OTEL_HOST"] = host
 
-    print(host, public_key, secret_key)
+    from langfuse import get_client
+    get_client()
+
+    from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+    if _llamaindex_instrumentor_active:
+        LlamaIndexInstrumentor().uninstrument()
+    LlamaIndexInstrumentor().instrument()
+    _llamaindex_instrumentor_active = True
 
     # Aggiunge il callback solo se non è già presente — evita duplicati
     # che causerebbero trace doppi per ogni chiamata LiteLLM.
@@ -45,11 +45,8 @@ def setup(host: str, public_key: str, secret_key: str) -> None:
 
 def teardown() -> None:
     """Disattiva il tracing Langfuse e rimuove le credenziali dall'ambiente.
-
-    Idempotente: non fa nulla se Langfuse non era attivo.
-    Chiamata da config_handlers quando il provider viene impostato su 'none'.
     """
-    global _active
+    global _active, _llamaindex_instrumentor_active
 
     if not _active:
         logger.debug("[observability] teardown chiamato ma langfuse non era attivo, skip")
@@ -59,9 +56,14 @@ def teardown() -> None:
     if "langfuse_otel" in litellm.callbacks:
         litellm.callbacks.remove("langfuse_otel")
 
+    if _llamaindex_instrumentor_active:
+        from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
+        LlamaIndexInstrumentor().uninstrument()
+        _llamaindex_instrumentor_active = False
+
     # Rimuove le variabili d'ambiente — evita che una config successiva
     # erediti credenziali vecchie se i campi vengono lasciati vuoti.
-    for var in ("LANGFUSE_OTEL_HOST", "LANGFUSE_HOST", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
+    for var in ("LANGFUSE_BASE_URL", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
         os.environ.pop(var, None)
 
     _active = False
@@ -70,22 +72,13 @@ def teardown() -> None:
 
 async def flush() -> None:
     """Svuota la coda di trace pendenti prima dello shutdown.
-
-    Langfuse invia i trace in background in modo asincrono. Senza questo
-    flush, i trace generati poco prima della chiusura del processo vengono
-    persi. Va chiamato nel lifespan FastAPI durante lo shutdown.
-
-    Idempotente: non fa nulla se Langfuse non era attivo.
     """
     if not _active:
         return
 
     try:
-        # get_client() restituisce il singleton Langfuse già inizializzato
-        # dall'integrazione OTEL — non crea una nuova connessione.
         from langfuse import get_client
-        langfuse = get_client()
-        langfuse.flush()
+        get_client().flush()
         logger.info("[observability] flush completato")
     except Exception:
         # Il flush non deve mai bloccare lo shutdown dell'applicazione.
@@ -94,8 +87,5 @@ async def flush() -> None:
 
 def is_active() -> bool:
     """Restituisce True se il tracing è attualmente attivo.
-
-    Utile per logging condizionale nei servizi AI: evita di costruire
-    metadata di trace se Langfuse non è configurato.
     """
     return _active

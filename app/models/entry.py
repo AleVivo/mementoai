@@ -14,6 +14,7 @@ class VectorStatus(str, Enum):
     pending = "pending"
     indexed = "indexed"
     outdated = "outdated"
+    error = "error"
 
 class EntryCreate(BaseModel):
     content: str
