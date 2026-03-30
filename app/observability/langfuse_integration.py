@@ -39,6 +39,10 @@ def setup(host: str, public_key: str, secret_key: str) -> None:
     if "langfuse_otel" not in litellm.callbacks:
         litellm.callbacks.append("langfuse_otel")
 
+    logging.getLogger(
+        "openinference.instrumentation.llama_index._handler"
+    ).setLevel(logging.ERROR)
+
     _active = True
     logger.info(f"[observability] langfuse attivo — host: {host}")
 

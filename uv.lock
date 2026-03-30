@@ -1000,6 +1000,19 @@ wheels = [
 ]
 
 [[package]]
+name = "llama-index-embeddings-litellm"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "litellm" },
+    { name = "llama-index-core" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/04/92/f614021f69a11c0fa25d510d33c2486f7436d9b8172961687a20b2201a09/llama_index_embeddings_litellm-0.5.0.tar.gz", hash = "sha256:c22c8909c9cb096c09db8c94b7711dad6e776db150e851251ca98b87dde64cff", size = 4049, upload-time = "2026-03-12T20:20:47.043Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/2b/90f7283acbf183defc4bb0f0d613920b7779e33d17bbff13d23daa750510/llama_index_embeddings_litellm-0.5.0-py3-none-any.whl", hash = "sha256:de97cc007469480d472cd36dc84e6814f322ce75c0761a275ba9f49d3fe8c593", size = 3833, upload-time = "2026-03-12T20:20:46.312Z" },
+]
+
+[[package]]
 name = "llama-index-instrumentation"
 version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1188,6 +1201,7 @@ dependencies = [
     { name = "langfuse" },
     { name = "litellm" },
     { name = "llama-index-core" },
+    { name = "llama-index-embeddings-litellm" },
     { name = "llama-index-llms-litellm" },
     { name = "llama-index-postprocessor-sbert-rerank" },
     { name = "llama-index-storage-docstore-mongodb" },
@@ -1214,6 +1228,7 @@ requires-dist = [
     { name = "langfuse", specifier = ">=4.0.1" },
     { name = "litellm", specifier = ">=1.82.4" },
     { name = "llama-index-core", specifier = ">=0.14.18" },
+    { name = "llama-index-embeddings-litellm", specifier = ">=0.5.0" },
     { name = "llama-index-llms-litellm", specifier = ">=0.7.1" },
     { name = "llama-index-postprocessor-sbert-rerank", specifier = ">=0.3.0" },
     { name = "llama-index-storage-docstore-mongodb", specifier = ">=0.3.0" },
