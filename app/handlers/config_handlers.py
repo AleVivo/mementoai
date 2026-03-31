@@ -15,12 +15,15 @@ il router chiama questo senza sapere cosa c'è dentro.
 """
 
 import logging
-import os
 from typing import Any, Callable, Coroutine, Optional
 
 from app.observability import langfuse_integration
 from app.services.llm import litellm_provider
 from app.services.llm import provider_cache
+
+from llama_index.core import Settings
+from llama_index.llms.litellm import LiteLLM
+from llama_index.embeddings.litellm import LiteLLMEmbedding
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +52,21 @@ async def _handle_llm(values: dict[str, Any]) -> None:
     api_base: Optional[str] = values.get("host") if provider == "ollama_chat" else None
     api_key: Optional[str] = values.get("api_key") if provider != "ollama_chat" else None
 
+    # OLD integration layer, mantained for backward compatibility with agent endpoint.
+
     provider_cache.set_chat_provider(litellm_provider.LiteLLMChatProvider(
         model=model_string, 
         api_base=api_base, 
         api_key=api_key
     ))
+
+    # NEW llamaindex integration
+    Settings.llm = LiteLLM(
+        model=model_string,
+        api_base=api_base,
+        api_key=api_key or "placeholder",
+    )
+
     logger.info(f"[config_handlers] llm — provider aggiornato: {model_string}")
 
 
@@ -75,6 +88,13 @@ async def _handle_embedding(values: dict[str, Any]) -> None:
         api_base=api_base,
         api_key=api_key
     ))
+
+    Settings.embed_model = LiteLLMEmbedding(
+        model_name=model_string,
+        api_base=api_base,
+        api_key=api_key or "placeholder",
+    )
+
     logger.info(f"[config_handlers] embedding — provider aggiornato: {model_string}")
 
 

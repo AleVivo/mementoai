@@ -3,14 +3,14 @@ from fastapi.responses import StreamingResponse
 from app.models.agent import AgentRequest
 from app.models.user import UserResponse
 from app.services.ai import agent
+from app.services.domain import project_service
 from app.dependencies.auth import get_current_user
-from app.services.ai.search_service import resolve_project_ids
 
 router = APIRouter()
 
 @router.post("")
 async def ask_agent_stream(request: AgentRequest, current_user: UserResponse = Depends(get_current_user)):
-    project_ids = await resolve_project_ids(request.project_id, current_user.id)
+    project_ids = await project_service.resolve_project_ids(request.project_id, current_user.id)
     return StreamingResponse(
         agent.run_agent_stream(
             question=request.question,

@@ -183,3 +183,19 @@ async def remove_member(project_id: str, user_id: str, current_user: UserRespons
         )
 
     await project_repository.remove_project_member(project_id, user_id)
+
+async def resolve_project_ids(project_id: str | None, user_id: str) -> list[str]:
+    """
+    Risolve i project_ids accessibili all'utente.
+    Se project_id specificato: verifica membership e ritorna [project_id].
+    Se assente: ritorna tutti i project_ids accessibili.
+    """
+    if project_id:
+        role = await project_repository.get_user_role_in_project(project_id, user_id)
+        if not role:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Accesso negato al progetto specificato.",
+            )
+        return [project_id]
+    return await project_repository.get_project_ids_for_user(user_id)

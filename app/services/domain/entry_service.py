@@ -8,7 +8,10 @@ from app.mappers import entry_mapper
 from datetime import datetime, timezone
 
 from app.models.user import UserResponse
-from app.services.processing import chunker, embedder
+from app.services.ingestion import pipeline as ingestion_pipeline
+
+from langfuse import observe
+
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +81,7 @@ async def update_entry(entry_id: str, update: EntryUpdate, current_user: UserRes
     return entry_mapper.doc_to_response(updated) if updated else None
 
 
+@observe(name="entry_indexing")
 async def index_entry(entry_id: str, current_user: UserResponse) -> EntryResponse | None:
     # Verifica membership
     entry = await entry_repository.get_entry_by_id(entry_id)
@@ -94,42 +98,25 @@ async def index_entry(entry_id: str, current_user: UserResponse) -> EntryRespons
         )
 
     logger.info(f"[index] START entry_id={entry_id}")
+    logger.info(f"[index] Loaded entry — title: {entry.title!r}, content: {len(entry.content)} chars")
 
-    existing = await entry_repository.get_entry_by_id(entry_id)
-    if not existing:
-        logger.warning(f"[index] Entry {entry_id} not found")
-        return None
-    logger.info(f"[index] Loaded entry — title: {existing.title!r}, content: {len(existing.content)} chars")
-
-    # Step 1 — Persist vector_status=indexed (enrichment via classifier rimosso dalla pipeline)
-    logger.info("[index] Step 1/3 — Persisting vector_status=indexed to MongoDB")
-    fields = {"vector_status": VectorStatus.indexed}
-    updated = await entry_repository.update_entry(entry_id, fields)
-    logger.info("[index] Metadata persisted.")
-
-    # Step 2 — Chunk HTML
-    logger.info("[index] Step 2/3 — Chunking HTML content")
-    await chunks_repository.delete_chunks_by_entry_id(entry_id)
-    raw_chunks = chunker.chunk_html(
-        content=existing.content,
-        entry_id=ObjectId(entry_id),
-        project_id=str(existing.projectId),
-        entry_type=existing.entry_type,
-        entry_title=existing.title,
-        created_at=existing.created_at,
-    )
-    logger.info(f"[index] Chunking done — {len(raw_chunks)} chunk(s) produced")
-
-    # Step 3 — Embed each chunk
-    logger.info(f"[index] Step 3/3 — Embedding {len(raw_chunks)} chunk(s)")
-    for i, chunk in enumerate(raw_chunks):
-        logger.info(f"[index] Embedding chunk {i+1}/{len(raw_chunks)} — {len(chunk.text)} chars")
-        vector = await embedder.generate_embedding(chunk.text)
-        chunk.embedding = vector
-    logger.info("[index] All chunks embedded.")
-
-    await chunks_repository.insert_chunks(raw_chunks)
-    logger.info(f"[index] DONE entry_id={entry_id} — {len(raw_chunks)} chunk(s) stored.")
+    try:
+        await ingestion_pipeline.run(
+            content=entry.content,
+            content_type="html",
+            entry_id=entry_id,
+            project_id=str(entry.projectId),
+            entry_type=entry.entry_type,
+            entry_title=entry.title,
+            created_at=entry.created_at,
+        )
+        # vector_status=indexed settato DOPO il successo della pipeline
+        updated = await entry_repository.update_entry(entry_id, {"vector_status": VectorStatus.indexed})
+        logger.info(f"[index] DONE entry_id={entry_id}")
+    except Exception as exc:
+        logger.error(f"[index] FAILED entry_id={entry_id}: {exc}", exc_info=True)
+        await entry_repository.update_entry(entry_id, {"vector_status": VectorStatus.error})
+        raise HTTPException(status_code=500, detail="Indicizzazione fallita. Riprova.")
 
     return entry_mapper.doc_to_response(updated) if updated else None
 
@@ -150,4 +137,5 @@ async def delete_entry(entry_id: str, current_user: UserResponse) -> bool:
         )
 
     await chunks_repository.delete_chunks_by_entry_id(entry_id)
+    await chunks_repository.delete_docstore_nodes_by_entry_id(entry_id)
     return await entry_repository.delete_entry_by_id(entry_id)

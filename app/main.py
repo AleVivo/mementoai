@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.db.client import close_client, get_client
+from app.db.client import close_client, get_async_client
 from app.handlers import config_handlers
 from app.observability import langfuse_integration
 from app.routers import admin, entries, search, chat, agent, auth, project, users
@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("MementoAI starting up...")
-    get_client()
-
+    get_async_client()
+    
     await config_handlers.run_all_handlers()
 
     if not provider_cache.is_initialized():

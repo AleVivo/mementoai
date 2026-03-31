@@ -257,9 +257,8 @@ async def ensure_vector_index(db) -> None:
                     "numDimensions": EMBEDDING_DIMENSIONS,
                     "similarity": "cosine",
                 },
-                # Filtro per project scope (ObjectId stringificato)
-                {"type": "filter", "path": "project_id"},
-                {"type": "filter", "path": "entry_type"},
+                {"type": "filter", "path": "metadata.project_id"},
+                {"type": "filter", "path": "metadata.entry_type"},
             ]
         },
     }
