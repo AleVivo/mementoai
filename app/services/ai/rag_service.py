@@ -135,7 +135,6 @@ async def _execute_rag(
     return response
 
 
-@observe(name="stream_rag", capture_output=False)
 async def stream_rag(
     request: ChatRequest,
     current_user: UserResponse,
@@ -160,40 +159,57 @@ async def stream_rag(
         request:      ChatRequest con question, project_id, top_k
         current_user: utente autenticato (per autorizzazione e tracing)
     """
-    t0 = time.perf_counter()
+    from langfuse import get_client
+
+    langfuse = get_client()
+
+    with langfuse.start_as_current_observation(
+        name="rag_call",
+        as_type="span",
+        input={
+            "question": request.question,
+            "project_ids": request.project_id
+            }
+    ) as observation:
+        
+        full_response = ""
+        t0 = time.perf_counter()
 
 
-    project_ids = await project_service.resolve_project_ids(
-        project_id=request.project_id,
-        user_id=current_user.id,
-    )
-    
-    sources: list[dict] = []
-
-    try:
-        # _execute_rag() crea uno span figlio di root_span tramite @observe
-        streaming_response = await _execute_rag(
-            question=request.question,
-            project_ids=project_ids,
-            top_k=request.top_k,
+        project_ids = await project_service.resolve_project_ids(
+            project_id=request.project_id,
+            user_id=current_user.id,
         )
+        
+        sources: list[dict] = []
 
-        # Streaming token-by-token
-        # source_nodes è popolato solo DOPO aver consumato tutto il generator
-        async for token in streaming_response.async_response_gen():
-            yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+        try:
+            # _execute_rag() crea uno span figlio di root_span tramite @observe
+            streaming_response = await _execute_rag(
+                question=request.question,
+                project_ids=project_ids,
+                top_k=request.top_k,
+            )
 
-        # Dopo lo stream — source_nodes è ora popolato
-        sources = _build_sources(streaming_response.source_nodes)
-        yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            # Streaming token-by-token
+            # source_nodes è popolato solo DOPO aver consumato tutto il generator
+            async for token in streaming_response.async_response_gen():
+                full_response += token
+                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
-        logger.info(f"[rag] STREAM DONE — total time: {time.perf_counter() - t0:.2f}s")
+            # Dopo lo stream — source_nodes è ora popolato
+            sources = _build_sources(streaming_response.source_nodes)
+            yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
-    except Exception as e:
-        logger.exception(f"[rag] ERRORE durante lo stream: {e}")
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-        raise
+            logger.info(f"[rag] STREAM DONE — total time: {time.perf_counter() - t0:.2f}s")
+
+        except Exception as e:
+            logger.exception(f"[rag] ERRORE durante lo stream: {e}")
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            raise
+
+        observation.update(output=full_response)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

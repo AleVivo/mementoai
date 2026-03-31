@@ -3,7 +3,9 @@ import type { AgentStep, ChatMessage, ChatSource } from "../types";
 
 interface ChatState {
   messages: Record<string, ChatMessage[]>;
+  conversationIds: Record<string, string | null>;
 
+  setConversationId: (project: string, id: string) => void;
   addMessage:       (project: string, message: ChatMessage) => void;
   appendToken:      (project: string, token: string) => void;
   appendReasoning:  (project: string, content: string) => void;
@@ -15,6 +17,12 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>((set) => ({
   messages: {},
+  conversationIds: {},
+
+  setConversationId: (project, id) =>
+    set((s) => ({
+      conversationIds: { ...s.conversationIds, [project]: id },
+    })),
 
   addMessage: (project, message) =>
     set((s) => ({
@@ -33,7 +41,7 @@ export const useChatStore = create<ChatState>((set) => ({
       return { messages: { ...s.messages, [project]: msgs } };
     }),
 
-    appendReasoning: (project, content) =>
+  appendReasoning: (project, content) =>
     set((s) => {
       const msgs = [...(s.messages[project] ?? [])];
       const last = msgs[msgs.length - 1];
@@ -80,7 +88,9 @@ export const useChatStore = create<ChatState>((set) => ({
   clearMessages: (project) =>
     set((s) => {
       const messages = { ...s.messages };
+      const conversationIds = { ...s.conversationIds };
       delete messages[project];
-      return { messages };
+      delete conversationIds[project];
+      return { messages, conversationIds };
     }),
 }));

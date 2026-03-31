@@ -163,7 +163,7 @@ Il package `services/` è organizzato per responsabilità:
 
 **`services/llm/`** — provider LLM (pattern Strategy)
 - `base` — ABC: `EmbeddingProvider`, `ChatProvider`, `ToolChatProvider`
-- `factory` — re-export di `get_chat_provider` / `get_embedding_provider` da `provider_cache` (backward compatibility)
+- `factory` — re-export di `get_langchain_chat_provider` / `get_embedding_provider` da `provider_cache` (backward compatibility)
 - `provider_cache` — singleton in memoria per i provider attivi; aggiornabile a runtime senza riavvio
 - `litellm_provider` — `LiteLLMChatProvider(model, api_base, api_key)` e `LiteLLMEmbeddingProvider(model, api_base, api_key)`
 
@@ -189,7 +189,7 @@ Admin → PUT /admin/config/{section_id} { values: {...} }
   → config_handlers.run_handler(section_id)
       → get_decrypted_values(section_id)   ← legge da MongoDB con secret in chiaro
       → istanzia nuovo LiteLLMChatProvider(model, api_base, api_key)
-      → provider_cache.set_chat_provider(provider)  ← aggiorna singleton in memoria
+      → provider_cache.set_langchain_chat_provider(provider)  ← aggiorna singleton in memoria
   → risponde 200 con schema + values merged (secret mascherati)
 ```
 
@@ -222,7 +222,7 @@ shutdown
 ```
 config_values (MongoDB)
   └─ config_handlers.py  (run_handler → legge DB, istanzia provider)
-       └─ provider_cache.py  (singleton in memoria — get/set_chat_provider)
+       └─ provider_cache.py  (singleton in memoria — get/set_langchain_chat_provider)
             └─ LiteLLMChatProvider(model, api_base, api_key)
                  └─ litellm  (routing per prefisso: ollama/ openai/ groq/)
 ```

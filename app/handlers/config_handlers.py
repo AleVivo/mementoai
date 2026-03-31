@@ -17,6 +17,8 @@ il router chiama questo senza sapere cosa c'è dentro.
 import logging
 from typing import Any, Callable, Coroutine, Optional
 
+from langchain_litellm import ChatLiteLLM
+
 from app.observability import langfuse_integration
 from app.services.llm import litellm_provider
 from app.services.llm import provider_cache
@@ -52,19 +54,26 @@ async def _handle_llm(values: dict[str, Any]) -> None:
     api_base: Optional[str] = values.get("host") if provider == "ollama_chat" else None
     api_key: Optional[str] = values.get("api_key") if provider != "ollama_chat" else None
 
-    # OLD integration layer, mantained for backward compatibility with agent endpoint.
+    # LangChain layer for langgraph
 
-    provider_cache.set_chat_provider(litellm_provider.LiteLLMChatProvider(
+    provider_cache.set_langchain_chat_provider(ChatLiteLLM(
         model=model_string, 
         api_base=api_base, 
-        api_key=api_key
+        api_key=api_key or "placeholder",
+        streaming=True,
+        model_kwargs={
+            "stream_options": {"include_usage": True}
+        }
     ))
 
-    # NEW llamaindex integration
+    # Llamaindex integration for RAG use
     Settings.llm = LiteLLM(
         model=model_string,
         api_base=api_base,
         api_key=api_key or "placeholder",
+        additional_kwargs={
+        "stream_options": {"include_usage": True},
+    }
     )
 
     logger.info(f"[config_handlers] llm — provider aggiornato: {model_string}")

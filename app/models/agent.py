@@ -9,11 +9,9 @@ class AgentRequest(BaseModel):
         examples=["Quanti ADR abbiamo scritto sul progetto Memento?"],
     )
     project_id: Optional[str] = None
-    max_steps: int = Field(
-        default=5,
-        ge=1,   # ge = greater or equal — validazione automatica
-        le=10,
-        description="Numero massimo di step del ReAct loop (1-10)",
+    conversation_id: Optional[str] = Field(
+        default=None,
+        description="ID per tracciare la conversazione. Se non fornito, ne viene generato uno nuovo.",
     )
 
 

@@ -86,6 +86,7 @@ export type SSEEvent =
 export interface AgentRequest {
   question: string;
   project_id?: string;
+  conversation_id?: string;
 }
 
 export interface AgentStep {
@@ -95,6 +96,7 @@ export interface AgentStep {
 }
 
 export type AgentSSEEvent =
+  | { type: 'session';   conversation_id: string }   // ← nuovo
   | { type: 'token';     content: string }
   | { type: 'reasoning'; content: string }
   | { type: 'step';      tool: string; args: Record<string, unknown>; result: unknown }

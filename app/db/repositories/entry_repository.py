@@ -40,6 +40,17 @@ async def get_entry_by_id(entry_id: str) -> Optional[EntryDocument]:
     entry = await get_db().entries.find_one({"_id": oid})
     return EntryDocument.model_validate(entry) if entry else None
 
+async def get_entry_by_id_and_project_id(entry_id: str, project_ids: list[str]) -> Optional[EntryDocument]:
+    try:
+        oid = ObjectId(entry_id)
+        oids = [ObjectId(pid) for pid in project_ids]
+    except InvalidId:
+        return None
+    
+    query = {"_id": oid, "projectId": {"$in": oids} if len(oids) > 1 else oids[0]}
+    entry = await get_db().entries.find_one(query)
+    return EntryDocument.model_validate(entry) if entry else None
+
 async def delete_entry_by_id(entry_id: str) -> bool:
     try:
         oid = ObjectId(entry_id)

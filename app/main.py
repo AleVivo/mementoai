@@ -29,6 +29,10 @@ async def lifespan(app: FastAPI):
             "Configura LLM ed embedding dalla admin console."
         )
 
+    from app.services.ai.agent_graph import build_agent_graph
+    app.state.agent_graph = build_agent_graph()
+    logger.info("Agent graph initialized")
+
     yield
 
     logger.info("MementoAI shutting down...")

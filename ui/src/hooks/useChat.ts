@@ -4,11 +4,12 @@ import { streamChat, streamAgent } from "@/api/chat";
 
 export function useChat() {
   const { activeProjectId, chatMode } = useUIStore();
-  const { messages, addMessage, appendToken, appendReasoning, addStep, setSources, setStreamingDone } = useChatStore();
+  const { messages, conversationIds, addMessage, setConversationId, appendToken, appendReasoning, addStep, setSources, setStreamingDone } = useChatStore();
 
   // Key is the active project id, or "__all__" when no project is selected
   const messageKey = activeProjectId ?? "__all__";
   const projectMessages = messages[messageKey] ?? [];
+  const conversationId = conversationIds[messageKey] ?? null;
 
   const lastMessage = projectMessages[projectMessages.length - 1];
   const isWaiting = lastMessage?.role === "assistant" && lastMessage.isStreaming === true;
@@ -24,8 +25,15 @@ export function useChat() {
     if (chatMode === "agent") {
       addMessage(messageKey, { role: "assistant", content: "", isStreaming: true });
       try {
-        for await (const event of streamAgent({ question: trimmed, project_id: scopedProjectId })) {
+        for await (const event of streamAgent({
+           question: trimmed, 
+           project_id: scopedProjectId,
+           conversation_id: conversationId ?? undefined,
+          })) {
           switch (event.type) {
+            case "session":
+              setConversationId(messageKey, event.conversation_id);
+            break;
             case "token":
               appendToken(messageKey, event.content);
               break;
@@ -33,7 +41,7 @@ export function useChat() {
               appendReasoning(messageKey, event.content);
               break;
             case "step":
-              addStep(messageKey, { tool: event.tool, args: event.args, result: event.result });
+              addStep(messageKey, { tool: event.tool, args: event.args ?? {}, result: event.result });
               break;
             case "done":
               setStreamingDone(messageKey);

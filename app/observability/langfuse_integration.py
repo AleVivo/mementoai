@@ -2,14 +2,13 @@ import logging
 import os
 from typing import Optional
 
-import litellm
-from llama_index.core import set_global_handler
+from langfuse.langchain import CallbackHandler
 
 logger = logging.getLogger(__name__)
 
 _active: bool = False
 _llamaindex_instrumentor_active: bool = False
-
+_langchain_handler: Optional[CallbackHandler] = None
 
 # ---------------------------------------------------------------------------
 # API pubblica
@@ -18,7 +17,7 @@ _llamaindex_instrumentor_active: bool = False
 def setup(host: str, public_key: str, secret_key: str) -> None:
     """Attiva il tracing Langfuse via OpenTelemetry.
     """
-    global _active, _llamaindex_instrumentor_active
+    global _active, _llamaindex_instrumentor_active, _langchain_handler
 
     os.environ["LANGFUSE_BASE_URL"] = host
     os.environ["LANGFUSE_PUBLIC_KEY"] = public_key
@@ -34,14 +33,12 @@ def setup(host: str, public_key: str, secret_key: str) -> None:
     LlamaIndexInstrumentor().instrument()
     _llamaindex_instrumentor_active = True
 
-    # Aggiunge il callback solo se non è già presente — evita duplicati
-    # che causerebbero trace doppi per ogni chiamata LiteLLM.
-    if "langfuse_otel" not in litellm.callbacks:
-        litellm.callbacks.append("langfuse_otel")
-
     logging.getLogger(
         "openinference.instrumentation.llama_index._handler"
     ).setLevel(logging.ERROR)
+
+    # Aggiunge il CallbackHandler per LangChain/LangGraph
+    _langchain_handler = CallbackHandler()
 
     _active = True
     logger.info(f"[observability] langfuse attivo — host: {host}")
@@ -50,15 +47,11 @@ def setup(host: str, public_key: str, secret_key: str) -> None:
 def teardown() -> None:
     """Disattiva il tracing Langfuse e rimuove le credenziali dall'ambiente.
     """
-    global _active, _llamaindex_instrumentor_active
+    global _active, _llamaindex_instrumentor_active, _langchain_handler
 
     if not _active:
         logger.debug("[observability] teardown chiamato ma langfuse non era attivo, skip")
         return
-
-    # Rimuove il callback da LiteLLM
-    if "langfuse_otel" in litellm.callbacks:
-        litellm.callbacks.remove("langfuse_otel")
 
     if _llamaindex_instrumentor_active:
         from openinference.instrumentation.llama_index import LlamaIndexInstrumentor
@@ -70,6 +63,7 @@ def teardown() -> None:
     for var in ("LANGFUSE_BASE_URL", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
         os.environ.pop(var, None)
 
+    _langchain_handler = None
     _active = False
     logger.info("[observability] langfuse disattivato")
 
@@ -93,3 +87,9 @@ def is_active() -> bool:
     """Restituisce True se il tracing è attualmente attivo.
     """
     return _active
+
+def get_langchain_handler():
+    """Restituisce un CallbackHandler"""
+    if not _langchain_handler:
+        return None
+    return _langchain_handler

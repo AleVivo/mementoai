@@ -8,12 +8,16 @@ Ogni funzione delega al codice esistente — nessuna pipeline duplicata:
 - count_entries    → aggregazione $facet diretta su MongoDB
 """
 
-from typing import Optional
+from typing import Annotated, Literal, Optional
 
 from app.db.client import get_db
 from app.db.repositories import entry_repository
 from app.mappers import entry_mapper
 from app.services.retrieval import reranker, retriever as retriever_module
+
+from langchain_core.tools import tool
+from langchain_core.runnables import RunnableConfig
+from langgraph.prebuilt import InjectedState
 
 
 # ---------------------------------------------------------------------------
@@ -26,18 +30,20 @@ from app.services.retrieval import reranker, retriever as retriever_module
 # Se domani cambia il retriever, cambia solo retriever.py.
 # ---------------------------------------------------------------------------
 
+@tool
 async def search_semantic(
     query: str,
     limit: int = 5,
-    project_ids: list[str] | None = None,
+    project_ids: Annotated[list[str] | None, InjectedState("project_ids")] = None,
 ) -> list[dict]:
     """
     Cerca nella knowledge base per significato semantico.
-    Ritorna chunk di testo serializzati come dict JSON.
-
-    Pipeline: $vectorSearch (top_k=limit*2) → AutoMerging → SentenceTransformerRerank (top_n=3)
+    USA QUESTO TOOL per domande su contenuto, tecnologie, decisioni,
+    problemi — qualsiasi domanda aperta su "cosa", "perché", "come".
+    Esempi: "usiamo qualche db?", "quali problemi abbiamo avuto con Redis?",
+    "come gestiamo l'autenticazione?".
+    NON usare per conteggi o per recuperare entry per data/tipo esatto.
     """
-    # top_k moltiplicato per dare più candidati al reranker
     retriever_instance = retriever_module.get_retriever(project_ids=project_ids, top_k=limit * 2)
     nodes = await retriever_instance.aretrieve(query)
     nodes = reranker.get_reranker().postprocess_nodes(nodes, query_str=query)
@@ -62,12 +68,20 @@ async def search_semantic(
 # TOOL 2 — Filtro per campi esatti (invariato)
 # ---------------------------------------------------------------------------
 
+@tool
 async def filter_entries(
-    project_ids: list[str] | None = None,
-    entry_type: Optional[str] = None,
+    project_ids: Annotated[list[str] | None, InjectedState("project_ids")] = None,
+    entry_type: Literal["adr", "postmortem", "update"] | None = None,
     week: Optional[str] = None,
     limit: int = 20,
 ) -> list[dict]:
+    """
+    Filtra entry per criteri esatti: tipo (adr/postmortem/update) e settimana.
+    USA QUESTO TOOL solo quando la domanda specifica criteri strutturati,
+    NON per domande sul contenuto.
+    Esempi corretti: "tutti gli ADR", "gli update di questa settimana", "l'ultimo postmortem".
+    Esempi sbagliati: "usiamo qualche db?", "quali problemi abbiamo avuto?" — per questi usa search_semantic.
+    """
     results = await entry_repository.get_entries(
         project_ids=project_ids,
         entry_type=entry_type,
@@ -82,8 +96,19 @@ async def filter_entries(
 # TOOL 3 — Recupero singola entry per ID (invariato)
 # ---------------------------------------------------------------------------
 
-async def get_entry(entry_id: str) -> Optional[dict]:
-    result = await entry_repository.get_entry_by_id(entry_id)
+@tool
+async def get_entry(
+    entry_id: str,
+    project_ids: Annotated[list[str] | None, InjectedState("project_ids")] = None
+) -> Optional[dict]:
+    """Recupera una singola entry completa tramite il suo ID MongoDB. 
+    Usa questo tool SOLO dopo search_semantic, quando il chunk 
+    restituito non contiene abbastanza contesto e vuoi leggere 
+    il contenuto completo dell'entry originale. 
+    NON usarlo dopo filter_entries — quelle entry sono già complete. 
+    IMPORTANTE: usa SOLO ID reali ottenuti dal campo entry_id 
+    di search_semantic — non inventare mai un ID.""" 
+    result = await entry_repository.get_entry_by_id_and_project_id(entry_id, project_ids or [])
     if result is None:
         return None
     return entry_mapper.doc_to_response(result).model_dump(mode="json")
@@ -93,15 +118,16 @@ async def get_entry(entry_id: str) -> Optional[dict]:
 # TOOL 4 — Conteggio e aggregazione (invariato)
 # ---------------------------------------------------------------------------
 
+@tool
 async def count_entries(
-    project_ids: list[str] | None = None,
+    project_ids: Annotated[list[str] | None, InjectedState("project_ids")] = None,
     entry_type: Optional[str] = None,
     week: Optional[str] = None,
 ) -> dict:
-    """
-    Conta le entry con breakdown per tipo e progetto.
-    Returns: {"total": N, "by_type": {...}, "by_project": {...}}
-    """
+    """Conta le entry che corrispondono ai filtri e restituisce 
+    un breakdown per tipo e per progetto. 
+    Usa questo tool per domande quantitative: 'quanti post-mortem', 
+    'qual è il progetto più attivo', 'quanto spesso scriviamo ADR'."""
     match_stage: dict = {}
     if project_ids:
         match_stage["project_id"] = {"$in": project_ids}

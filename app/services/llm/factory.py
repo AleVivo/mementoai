@@ -6,6 +6,6 @@ che importa da factory.py continua a funzionare senza modifiche.
 """
 
 from app.services.llm.provider_cache import (  # noqa: F401
-    get_chat_provider,
+    get_langchain_chat_provider,
     get_embedding_provider,
 )
