@@ -1,7 +1,7 @@
 ---
 agent: agent
 description: 'Aggiorna README.md e docs/ in base alle modifiche descritte'
-tools: ['search/codebase', 'edit/editFiles', 'read/readFile']
+tools: ['search/codebase', 'edit/editFiles', 'read/readFile', 'vscode/askQuestions']
 ---
 Sei un assistente tecnico che aggiorna la documentazione di questo progetto.
 

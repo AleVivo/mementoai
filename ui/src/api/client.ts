@@ -5,7 +5,7 @@ export const BASE_URL = "http://localhost:8000";
 // Singleton promise — prevents concurrent 401s from firing multiple refresh calls
 let refreshPromise: Promise<boolean> | null = null;
 
-async function tryRefresh(): Promise<boolean> {
+export async function tryRefresh(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
   refreshPromise = (async () => {
     const { refreshToken, setAuth, logout } = useAuthStore.getState();

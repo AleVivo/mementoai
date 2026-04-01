@@ -4,7 +4,7 @@ import { streamChat, streamAgent } from "@/api/chat";
 
 export function useChat() {
   const { activeProjectId, chatMode } = useUIStore();
-  const { messages, conversationIds, addMessage, setConversationId, appendToken, appendReasoning, addStep, setSources, setStreamingDone } = useChatStore();
+  const { messages, conversationIds, addMessage, setConversationId, appendToken, appendReasoning, addPendingStep, addStep, setSources, setStreamingDone } = useChatStore();
 
   // Key is the active project id, or "__all__" when no project is selected
   const messageKey = activeProjectId ?? "__all__";
@@ -39,6 +39,9 @@ export function useChat() {
               break;
             case "reasoning":
               appendReasoning(messageKey, event.content);
+              break;
+            case "tool_start":
+              addPendingStep(messageKey, event.tool);
               break;
             case "step":
               addStep(messageKey, { tool: event.tool, args: event.args ?? {}, result: event.result });

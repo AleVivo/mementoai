@@ -64,7 +64,11 @@ async def run_agent_stream(
             }
         
             steps: list[dict] = []
-            
+            # Traccia l'indice delle tool call già annunciate al FE con tool_start.
+            # tool_call_chunks arrivano in frammenti multipli per lo stesso indice;
+            # emettiamo tool_start una sola volta per indice.
+            announced_tool_indices: set[int] = set()
+
             async for chunk, metadata in graph.astream(
                 input_state,
                 config=config,
@@ -74,19 +78,53 @@ async def run_agent_stream(
 
                 if node == "agent" and isinstance(chunk, AIMessageChunk):
 
-                    if chunk.tool_call_chunks:
-                        # il modello sta costruendo una tool call
-                        # emettiamo il nome del tool come reasoning
-                        for tc in chunk.tool_call_chunks:
-                            if tc.get("name"):
-                                yield f"data: {json.dumps({'type': 'reasoning', 'content': tc['name']})}\n\n"
-                                break
+                    # ── Reasoning/thinking tokens ──────────────────────────────────────
+                    # Presente solo in modelli che lo supportano esplicitamente:
+                    #   - DeepSeek-R1 / Qwen3 (thinking mode): reasoning_content in additional_kwargs
+                    #   - Claude extended thinking: content è una lista di blocchi tipizzati
+                    # Nei modelli standard (GPT-4, Llama3, Qwen2.5 base) questo ramo
+                    # non produce nulla — comportamento corretto.
 
+                    reasoning_text: str | None = (
+                        chunk.additional_kwargs.get("reasoning_content")
+                        or chunk.additional_kwargs.get("thinking")
+                    )
+                    if reasoning_text:
+                        yield f"data: {json.dumps({'type': 'reasoning', 'content': reasoning_text})}\n\n"
+
+                    # ── Contenuto del chunk ────────────────────────────────────────────
+                    # content può essere str (modelli standard) o lista di blocchi
+                    # tipizzati (Anthropic extended thinking).
+
+                    if isinstance(chunk.content, list):
+                        # Anthropic-style: lista di blocchi {"type": "thinking"|"text", ...}
+                        for block in chunk.content:
+                            if not isinstance(block, dict):
+                                continue
+                            if block.get("type") == "thinking":
+                                thinking_text = block.get("thinking", "")
+                                if thinking_text:
+                                    yield f"data: {json.dumps({'type': 'reasoning', 'content': thinking_text})}\n\n"
+                            elif block.get("type") == "text":
+                                text = block.get("text", "")
+                                if text:
+                                    full_response += text
+                                    yield f"data: {json.dumps({'type': 'token', 'content': text})}\n\n"
                     elif chunk.content:
-                        # token della risposta finale
-                        if isinstance(chunk.content, str):
-                            full_response += chunk.content
+                        # Stringa semplice — token di risposta finale
+                        full_response += chunk.content
                         yield f"data: {json.dumps({'type': 'token', 'content': chunk.content})}\n\n"
+
+                    # ── Tool call in costruzione ───────────────────────────────────────
+                    # Emettiamo tool_start alla prima occorrenza del nome per ogni indice.
+                    # Il successivo evento `step` (da ToolMessage) porta il risultato.
+                    if chunk.tool_call_chunks:
+                        for tc in chunk.tool_call_chunks:
+                            idx: int = tc.get("index") or 0
+                            name = tc.get("name", "")
+                            if name and idx not in announced_tool_indices:
+                                announced_tool_indices.add(idx)
+                                yield f"data: {json.dumps({'type': 'tool_start', 'tool': name})}\n\n"
 
                 elif node == "tools" and isinstance(chunk, ToolMessage):
                     step = {

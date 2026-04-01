@@ -1,4 +1,4 @@
-import { BASE_URL } from "./client";
+import { BASE_URL, tryRefresh } from "./client";
 import { useAuthStore } from "../store/auth.store";
 import type { ChatRequest, AgentRequest, AgentSSEEvent, SSEEvent } from "../types";
 
@@ -9,12 +9,19 @@ function authHeaders(): Record<string, string> {
   return headers;
 }
 
+async function fetchSSE(url: string, body: unknown): Promise<Response> {
+  const opts = { method: "POST", headers: authHeaders(), body: JSON.stringify(body) };
+  let res = await fetch(url, opts);
+  if (res.status === 401) {
+    const refreshed = await tryRefresh();
+    if (!refreshed) throw new Error("Session expired. Please log in again.");
+    res = await fetch(url, { ...opts, headers: authHeaders() });
+  }
+  return res;
+}
+
 export async function* streamAgent(request: AgentRequest): AsyncGenerator<AgentSSEEvent> {
-  const response = await fetch(`${BASE_URL}/agent`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(request),
-  });
+  const response = await fetchSSE(`${BASE_URL}/agent`, request);
 
   if (!response.ok) throw new Error(`POST /agent → ${response.status}`);
   if (!response.body) throw new Error("No response body");
@@ -44,13 +51,9 @@ export async function* streamAgent(request: AgentRequest): AsyncGenerator<AgentS
 }
 
 export async function* streamChat(request: ChatRequest): AsyncGenerator<SSEEvent> {
-  const response = await fetch(`${BASE_URL}/chat`, {
-    method: "POST",
-    headers: authHeaders(),
-    body: JSON.stringify(request),
-  });
+  const response = await fetchSSE(`${BASE_URL}/chat`, request);
 
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
+  if (!response.ok) throw new Error(`POST /chat → ${response.status}`);
   if (!response.body) throw new Error("No response body");
 
   const reader = response.body.getReader();

@@ -86,7 +86,12 @@ export function ChatMessage({ message }: Props) {
               <div className="mb-2 pb-2 border-b border-[var(--border-ui)] flex flex-col gap-1">
                 {message.steps.map((step, i) => (
                   <span key={i} className="text-[11px] text-[var(--text-muted-ui)] flex items-center gap-1.5">
-                    <span className="font-mono bg-background/60 rounded px-1">{step.tool}</span>
+                    {step.pending ? (
+                      <span className="inline-block w-2.5 h-2.5 rounded-full border border-current border-t-transparent animate-spin flex-shrink-0" />
+                    ) : (
+                      <span className="inline-block w-2 h-2 rounded-full bg-current opacity-50 flex-shrink-0" />
+                    )}
+                    <span className={`font-mono bg-background/60 rounded px-1 ${step.pending ? "opacity-60" : ""}`}>{step.tool}</span>
                   </span>
                 ))}
               </div>

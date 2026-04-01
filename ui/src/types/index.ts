@@ -93,15 +93,17 @@ export interface AgentStep {
   tool: string;
   args: Record<string, unknown>;
   result: unknown;
+  pending?: boolean;
 }
 
 export type AgentSSEEvent =
-  | { type: 'session';   conversation_id: string }   // ← nuovo
-  | { type: 'token';     content: string }
-  | { type: 'reasoning'; content: string }
-  | { type: 'step';      tool: string; args: Record<string, unknown>; result: unknown }
-  | { type: 'done';      steps: AgentStep[]; model: string }
-  | { type: 'error';     message: string };
+  | { type: 'session';    conversation_id: string }
+  | { type: 'token';      content: string }
+  | { type: 'reasoning';  content: string }
+  | { type: 'tool_start'; tool: string }
+  | { type: 'step';       tool: string; args: Record<string, unknown>; result: unknown }
+  | { type: 'done';       steps: AgentStep[]; model: string }
+  | { type: 'error';      message: string };
 
 // #### PROJECT TYPES ####
 

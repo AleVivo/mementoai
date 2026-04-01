@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-23
+last_updated: 2026-04-01
 ---
 
 # MementoAI — Frontend Specification
@@ -70,7 +70,7 @@ ui/                          ← Tauri frontend root
 │   │   ├── projects.store.ts       ← Zustand: lista progetti + actions
 │   │   ├── ui.store.ts             ← Zustand: sidebar open, active entry, chat open, dirty/saving/indexing state, chatMode, isAdminConsoleOpen
 │   │   ├── auth.store.ts           ← Zustand: token, refreshToken, user; persistiti in localStorage
-│   │   └── chat.store.ts           ← Zustand: messages per projectId (chiave "__all__" per scope globale)
+│   │   └── chat.store.ts           ← Zustand: messages per projectId (chiave "__all__" per scope globale); actions: addPendingStep (tool_start) / addStep (sostituisce pending con risultato)
 │   ├── hooks/
 │   │   ├── useEntries.ts           ← Fetch entries on project change, popola store
 │   │   ├── useProjects.ts          ← Fetch progetti dell'utente, popola store
@@ -211,14 +211,17 @@ export interface AgentStep {
   tool: string;
   args: Record<string, unknown>;
   result: unknown;
+  pending?: boolean;  // true mentre il tool è in esecuzione (rimosso al completamento)
 }
 
 export type AgentSSEEvent =
-  | { type: 'token';     content: string }
-  | { type: 'reasoning'; content: string }
-  | { type: 'step';      tool: string; args: Record<string, unknown>; result: unknown }
-  | { type: 'done';      steps: AgentStep[]; model: string }
-  | { type: 'error';     message: string };
+  | { type: 'session';    conversation_id: string }   // primo evento — ID conversazione (nuovo o esistente)
+  | { type: 'token';      content: string }
+  | { type: 'reasoning';  content: string }            // solo su modelli con thinking nativo
+  | { type: 'tool_start'; tool: string }               // emesso non appena il modello decide di usare un tool
+  | { type: 'step';       tool: string; args: Record<string, unknown>; result: unknown }  // dopo esecuzione
+  | { type: 'done';       steps: AgentStep[]; model: string }
+  | { type: 'error';      message: string };
 
 // #### AUTH TYPES ####
 

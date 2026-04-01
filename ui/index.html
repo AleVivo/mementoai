@@ -5,10 +5,88 @@
     <link rel="icon" type="image/svg+xml" href="/memento-icon-v3-spark.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MementoAI</title>
+    <!-- Apply theme before first paint to avoid flash -->
+    <script>
+      (function () {
+        if (localStorage.getItem('theme') === 'dark') {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+    <style>
+      html, body, #root {
+        margin: 0; padding: 0; height: 100%;
+        background-color: oklch(1 0 0);
+      }
+      html.dark, html.dark body, html.dark #root {
+        background-color: oklch(0.047 0 0);
+      }
+      #memento-splash {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 24px;
+        background-color: oklch(1 0 0);
+        color: oklch(0.07 0 0);
+      }
+      html.dark #memento-splash {
+        background-color: oklch(0.047 0 0);
+        color: oklch(0.97 0 0);
+      }
+      #memento-splash-label {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        font-size: 15px;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        opacity: 0.45;
+      }
+      @keyframes mDiag {
+        0%,5%    { stroke-dashoffset:120; opacity:.3 }
+        40%      { stroke-dashoffset:0;   opacity:1  }
+        85%,100% { stroke-dashoffset:0;   opacity:1  }
+      }
+      @keyframes mDot {
+        0%,35%  { r:0; opacity:0 }
+        55%     { r:7; opacity:1 }
+        65%     { r:5; opacity:1 }
+        85%,100%{ r:5; opacity:1 }
+      }
+      @keyframes mOut {
+        0%,50%   { stroke-dashoffset:60; opacity:0 }
+        52%      { opacity:1 }
+        80%      { stroke-dashoffset:0;  opacity:1 }
+        85%,100% { stroke-dashoffset:0;  opacity:1 }
+      }
+      @keyframes mFade {
+        0%,80%{ opacity:1 }
+        95%   { opacity:0 }
+        100%  { opacity:0 }
+      }
+      .mw  { animation: mFade  2.4s ease-in-out infinite; }
+      .mlt { stroke-dasharray:120; stroke-dashoffset:120; animation: mDiag 2.4s ease-in-out infinite; }
+      .mlb { stroke-dasharray:120; stroke-dashoffset:120; animation: mDiag 2.4s ease-in-out infinite; }
+      .mld { animation: mDot  2.4s ease-in-out infinite; }
+      .mlo { stroke-dasharray:60;  stroke-dashoffset:60;  animation: mOut  2.4s ease-in-out infinite; }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="memento-splash">
+        <svg viewBox="0 0 100 80" width="96" height="96" xmlns="http://www.w3.org/2000/svg">
+          <g class="mw">
+            <line class="mlt" x1="8"  y1="14" x2="52" y2="40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+            <line class="mlb" x1="8"  y1="66" x2="52" y2="40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+            <circle class="mld" cx="52" cy="40" fill="currentColor"/>
+            <line class="mlo" x1="52" y1="40" x2="92" y2="40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+          </g>
+        </svg>
+        <span id="memento-splash-label">MementoAI</span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

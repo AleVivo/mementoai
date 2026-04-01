@@ -5,14 +5,15 @@ interface ChatState {
   messages: Record<string, ChatMessage[]>;
   conversationIds: Record<string, string | null>;
 
-  setConversationId: (project: string, id: string) => void;
-  addMessage:       (project: string, message: ChatMessage) => void;
-  appendToken:      (project: string, token: string) => void;
-  appendReasoning:  (project: string, content: string) => void;
-  addStep:          (project: string, step: AgentStep) => void;
-  setSources:       (project: string, sources: ChatSource[]) => void;
-  setStreamingDone: (project: string) => void;
-  clearMessages:    (project: string) => void;
+  setConversationId:  (project: string, id: string) => void;
+  addMessage:         (project: string, message: ChatMessage) => void;
+  appendToken:        (project: string, token: string) => void;
+  appendReasoning:    (project: string, content: string) => void;
+  addPendingStep:     (project: string, tool: string) => void;
+  addStep:            (project: string, step: AgentStep) => void;
+  setSources:         (project: string, sources: ChatSource[]) => void;
+  setStreamingDone:   (project: string) => void;
+  clearMessages:      (project: string) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
@@ -55,15 +56,31 @@ export const useChatStore = create<ChatState>((set) => ({
       return { messages: { ...s.messages, [project]: msgs } };
     }),
 
-  addStep: (project, step) =>
+  addPendingStep: (project, tool) =>
     set((s) => {
       const msgs = [...(s.messages[project] ?? [])];
       const last = msgs[msgs.length - 1];
       if (!last || last.role !== "assistant") return s;
       msgs[msgs.length - 1] = {
         ...last,
-        steps: [...(last.steps ?? []), step],
+        steps: [...(last.steps ?? []), { tool, args: {}, result: null, pending: true }],
       };
+      return { messages: { ...s.messages, [project]: msgs } };
+    }),
+
+  addStep: (project, step) =>
+    set((s) => {
+      const msgs = [...(s.messages[project] ?? [])];
+      const last = msgs[msgs.length - 1];
+      if (!last || last.role !== "assistant") return s;
+      const existing = last.steps ?? [];
+      // Sostituisce il primo step pending con lo stesso tool name, altrimenti appende.
+      const pendingIdx = existing.findIndex((st) => st.tool === step.tool && st.pending);
+      const updated =
+        pendingIdx !== -1
+          ? existing.map((st, i) => (i === pendingIdx ? step : st))
+          : [...existing, step];
+      msgs[msgs.length - 1] = { ...last, steps: updated };
       return { messages: { ...s.messages, [project]: msgs } };
     }),
 
