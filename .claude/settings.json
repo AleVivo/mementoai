@@ -1,0 +1,45 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run*)",
+      "Bash(npm run*)",
+      "Bash(npx tsc*)",
+      "Bash(npx*)",
+      "Bash(git *)",
+      "Bash(python*)",
+      "Bash(mongosh*)"
+    ],
+    "deny": [
+      "Bash(rm -rf*)",
+      "Write(**/.env*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file_path=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('file_path',''))\" 2>/dev/null); if echo \"$file_path\" | grep -qE '\\.(ts|tsx)$'; then cd ui && npx tsc --noEmit --skipLibCheck 2>&1 | head -20; fi"
+          },
+          {
+            "type": "command",
+            "command": "file_path=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('file_path',''))\" 2>/dev/null); if echo \"$file_path\" | grep -qE '\\.py$'; then uv run pyright app/ 2>&1 | tail -10; fi"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "file_path=$(echo \"$CLAUDE_TOOL_INPUT\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print(d.get('file_path',''))\" 2>/dev/null); if echo \"$file_path\" | grep -qE '\\.env'; then echo 'BLOCCATO: Modifica diretta di .env non permessa. Aggiorna le variabili manualmente.' >&2; exit 2; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -12,3 +12,7 @@ wheels/
 
 # Pychame project files
 .idea/
+
+# Claude Code — file personali non condivisi
+CLAUDE.local.md
+.claude/settings.local.json
