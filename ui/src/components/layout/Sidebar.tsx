@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PanelLeftClose, MessageSquare, LogOut, Settings2, Plus, ShieldCheck, AlertCircle, RefreshCw } from "lucide-react";
+import { PanelLeftClose, MessageSquare, LogOut, Settings2, Plus, ShieldCheck, AlertCircle, RefreshCw, FolderPlus, ArrowUpLeft } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useEntriesStore } from "@/store/entries.store";
@@ -130,10 +130,32 @@ export function Sidebar() {
             error={entriesError}
             onRetry={refetchEntries}
           />
+        ) : projects.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center">
+            <FolderPlus size={20} className="text-[var(--text-muted-ui)] opacity-50" />
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-[var(--text-muted-ui)]">Nessun progetto ancora</p>
+              <p className="text-[11px] text-[var(--text-muted-ui)] opacity-60 leading-relaxed">
+                Crea un progetto per iniziare ad aggiungere entry
+              </p>
+            </div>
+            <button
+              onClick={() => setIsNewProjectOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md border border-[var(--border-ui)] text-[var(--text-muted-ui)] hover:text-foreground hover:bg-[var(--bg-hover)] transition-colors"
+            >
+              <Plus size={11} />
+              Nuovo progetto
+            </button>
+          </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full gap-1 px-4 text-center">
-            <p className="text-xs text-[var(--text-muted-ui)]">Seleziona un progetto</p>
-            <p className="text-[11px] text-[var(--text-muted-ui)] opacity-60">per vedere le entry</p>
+          <div className="flex flex-col items-start justify-start pt-6 gap-2 px-5 text-left">
+            <ArrowUpLeft size={14} className="text-[var(--text-muted-ui)] opacity-40" />
+            <div className="flex flex-col gap-0.5">
+              <p className="text-xs font-medium text-[var(--text-muted-ui)]">Seleziona un progetto</p>
+              <p className="text-[11px] text-[var(--text-muted-ui)] opacity-60 leading-relaxed">
+                Le entry del progetto appariranno qui
+              </p>
+            </div>
           </div>
         )}
       </div>

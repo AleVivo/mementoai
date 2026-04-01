@@ -125,7 +125,7 @@ export function NewEntryDialog({ projectId }: NewEntryDialogProps) {
             </p>
           </div>
 
-          {error && <p className="text-xs text-red-500">{error}</p>}
+          {error && <p className="text-xs text-[var(--color-error)]">{error}</p>}
 
           <div className="flex justify-end gap-2 mt-1">
             <Button type="button" variant="outline" onClick={() => setNewEntryOpen(false)}>

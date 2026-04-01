@@ -209,7 +209,7 @@ export function EditorToolbar({ editor, entry, onIndex }: EditorToolbarProps) {
             type="button"
             title="Elimina entry"
             disabled={isDeleting}
-            className="p-1 rounded-md text-[var(--text-muted-ui)] hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+            className="p-1 rounded-md text-[var(--text-muted-ui)] hover:bg-[var(--color-destructive-hover-bg)] hover:text-[var(--color-error)] transition-colors disabled:opacity-50"
           >
             <Trash2 size={14} />
           </button>
@@ -225,7 +225,7 @@ export function EditorToolbar({ editor, entry, onIndex }: EditorToolbarProps) {
             <AlertDialogCancel>Annulla</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
-              className="bg-red-600 hover:bg-red-700 text-white"
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
               Elimina
             </AlertDialogAction>

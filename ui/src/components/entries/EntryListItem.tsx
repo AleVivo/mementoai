@@ -70,7 +70,7 @@ export function EntryListItem({ entry, isActive, onSelect }: EntryListItemProps)
                 onClick={(e) => e.stopPropagation()}
                 title="Elimina"
                 className={cn(
-                  "shrink-0 p-1 rounded-md text-[var(--text-muted-ui)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors",
+                  "shrink-0 p-1 rounded-md text-[var(--text-muted-ui)] hover:text-[var(--color-error)] hover:bg-[var(--color-destructive-hover-bg)] transition-colors",
                   isDeleting && "opacity-50 pointer-events-none"
                 )}
               >
@@ -88,7 +88,7 @@ export function EntryListItem({ entry, isActive, onSelect }: EntryListItemProps)
                 <AlertDialogCancel>Annulla</AlertDialogCancel>
                 <AlertDialogAction
                   onClick={handleDelete}
-                  className="bg-red-600 hover:bg-red-700 text-white"
+                  className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                 >
                   Elimina
                 </AlertDialogAction>

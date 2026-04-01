@@ -42,7 +42,7 @@ export function AdminConsole() {
           </div>
         ) : error ? (
           <div className="flex items-center justify-center h-32">
-            <p className="text-sm text-red-500">{error}</p>
+            <p className="text-sm text-[var(--color-error)]">{error}</p>
           </div>
         ) : (
           <div className="flex flex-col gap-4 max-w-2xl mx-auto w-full">

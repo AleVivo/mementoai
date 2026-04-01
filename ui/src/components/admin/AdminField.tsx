@@ -58,7 +58,7 @@ export function AdminField({ field, values, onChange }: Props) {
         <label className="text-xs font-medium text-foreground">
           {field.label}
           {(field.required || isRequired) && (
-            <span className="text-red-500 ml-0.5">*</span>
+            <span className="text-[var(--color-error)] ml-0.5">*</span>
           )}
         </label>        
         <select
@@ -87,7 +87,7 @@ export function AdminField({ field, values, onChange }: Props) {
         <label className="text-xs font-medium text-foreground">
           {field.label}
           {(field.required || isRequired) && (
-            <span className="text-red-500 ml-0.5">*</span>
+            <span className="text-[var(--color-error)] ml-0.5">*</span>
           )}
         </label>        
         <button
@@ -114,7 +114,7 @@ export function AdminField({ field, values, onChange }: Props) {
         <label className="text-xs font-medium text-foreground">
           {field.label}
           {(field.required || isRequired) && (
-            <span className="text-red-500 ml-0.5">*</span>
+            <span className="text-[var(--color-error)] ml-0.5">*</span>
           )}
         </label>      
       <Input

@@ -5,11 +5,6 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-@theme {
-  --color-adr: #3B82F6;
-  --color-postmortem: #F59E0B;
-  --color-update: #22C55E;
-}
 
 @layer base {
   * {
@@ -65,6 +60,25 @@ html, body, #root {
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
 
+  /* Entry type colors */
+  --color-adr: #3B82F6;
+  --color-adr-bg: #dbeafe;
+  --color-postmortem: #D97706;
+  --color-postmortem-bg: #fef3c7;
+  --color-update: #16A34A;
+  --color-update-bg: #dcfce7;
+  --color-other: #6B7280;
+  --color-other-bg: #f3f4f6;
+
+  /* Status colors */
+  --color-success: #16A34A;
+  --color-success-bg: #dcfce7;
+  --color-warning: #D97706;
+  --color-warning-bg: #fef3c7;
+  --color-error: #ef4444;
+  --color-error-bg: #fee2e2;
+  --color-destructive-hover-bg: #fef2f2;
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.07 0 0);
   --card: oklch(1 0 0);
@@ -110,6 +124,25 @@ html, body, #root {
   --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.3);
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -1px rgba(0,0,0,0.2);
   --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.4), 0 4px 6px -2px rgba(0,0,0,0.2);
+
+  /* Entry type colors — dark */
+  --color-adr: #60a5fa;
+  --color-adr-bg: rgba(59, 130, 246, 0.15);
+  --color-postmortem: #fbbf24;
+  --color-postmortem-bg: rgba(245, 158, 11, 0.15);
+  --color-update: #4ade80;
+  --color-update-bg: rgba(34, 197, 94, 0.15);
+  --color-other: #9ca3af;
+  --color-other-bg: rgba(107, 114, 128, 0.2);
+
+  /* Status colors — dark */
+  --color-success: #4ade80;
+  --color-success-bg: rgba(74, 222, 128, 0.1);
+  --color-warning: #fbbf24;
+  --color-warning-bg: rgba(251, 191, 36, 0.1);
+  --color-error: #f87171;
+  --color-error-bg: rgba(239, 68, 68, 0.1);
+  --color-destructive-hover-bg: rgba(239, 68, 68, 0.15);
 
   --background: oklch(0.047 0 0);
   --foreground: oklch(0.97 0 0);

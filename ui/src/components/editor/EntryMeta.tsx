@@ -93,14 +93,14 @@ export function EntryMeta({
     isSaving ? (
       <span className="text-xs text-[var(--text-muted-ui)]">Salvataggio...</span>
     ) : isIndexing ? (
-      <span className="text-xs text-amber-500">Indicizzazione...</span>
+      <span className="text-xs text-[var(--color-warning)]">Indicizzazione...</span>
     ) : !showIndexed && (entry.vector_status === "pending" || entry.vector_status === "outdated") ? (
-      <span className="flex items-center gap-1 text-xs text-amber-500">
+      <span className="flex items-center gap-1 text-xs text-[var(--color-warning)]">
         <AlertCircle size={12} />
         {entry.vector_status === "outdated" ? "Non indicizzato" : "In attesa"}
       </span>
     ) : showIndexed ? (
-      <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-500">
+      <span className="flex items-center gap-1 text-xs text-[var(--color-success)]">
         <CheckCircle2 size={12} />
         Indicizzato
       </span>

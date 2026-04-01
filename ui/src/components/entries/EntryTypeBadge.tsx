@@ -1,17 +1,20 @@
 import type { EntryType } from "@/types";
 import { cn } from "@/lib/utils";
 
-const config: Record<EntryType, { label: string; className: string }> = {
-  adr: { label: "ADR", className: "bg-blue-100 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400" },
-  postmortem: { label: "PM", className: "bg-amber-100 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400" },
-  update: { label: "UPD", className: "bg-green-100 text-green-600 dark:bg-green-950/50 dark:text-green-400" },
-  other: { label: "OTH", className: "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400" },
+const config: Record<EntryType, { label: string; colorVar: string; bgVar: string }> = {
+  adr:        { label: "ADR", colorVar: "--color-adr",        bgVar: "--color-adr-bg" },
+  postmortem: { label: "PM",  colorVar: "--color-postmortem", bgVar: "--color-postmortem-bg" },
+  update:     { label: "UPD", colorVar: "--color-update",     bgVar: "--color-update-bg" },
+  other:      { label: "OTH", colorVar: "--color-other",      bgVar: "--color-other-bg" },
 };
 
 export function EntryTypeBadge({ type }: { type: EntryType }) {
-  const { label, className } = config[type] ?? config.other;
+  const { label, colorVar, bgVar } = config[type] ?? config.other;
   return (
-    <span className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0", className)}>
+    <span
+      className={cn("text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0")}
+      style={{ color: `var(${colorVar})`, backgroundColor: `var(${bgVar})` }}
+    >
       {label}
     </span>
   );

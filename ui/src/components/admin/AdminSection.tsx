@@ -17,8 +17,8 @@ function StatusBadge({ status }: { status?: string }) {
       className={cn(
         "text-[10px] font-medium px-2 py-0.5 rounded-full",
         status === "active"
-          ? "bg-green-500/10 text-green-600"
-          : "bg-red-500/10 text-red-600"
+          ? "bg-[var(--color-success-bg)] text-[var(--color-success)]"
+          : "bg-[var(--color-error-bg)] text-[var(--color-error)]"
       )}
     >
       {status === "active" ? "Attivo" : "Errore"}
@@ -126,7 +126,7 @@ export function AdminSection({ section, onUpdated }: Props) {
 
       {/* Status message */}
       {section.status === "error" && section.status_message && (
-        <p className="text-xs text-red-500 mt-1">{section.status_message}</p>
+        <p className="text-xs text-[var(--color-error)] mt-1">{section.status_message}</p>
       )}
     </div>
   );

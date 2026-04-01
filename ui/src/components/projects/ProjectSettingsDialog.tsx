@@ -233,7 +233,7 @@ export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSe
                     </Button>
                   </div>
                   {memberError && (
-                    <p className="text-xs text-red-500">{memberError}</p>
+                    <p className="text-xs text-[var(--color-error)]">{memberError}</p>
                   )}
                 </form>
               )}
@@ -267,7 +267,7 @@ export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSe
                             onClick={() => handleRemoveMember(m.userId, displayName)}
                             disabled={removingUserId === m.userId}
                             title="Rimuovi membro"
-                            className="shrink-0 p-1 rounded-md text-[var(--text-muted-ui)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors disabled:opacity-50"
+                            className="shrink-0 p-1 rounded-md text-[var(--text-muted-ui)] hover:text-[var(--color-error)] hover:bg-[var(--color-destructive-hover-bg)] transition-colors disabled:opacity-50"
                           >
                             {removingUserId === m.userId ? (
                               <Loader2 size={12} className="animate-spin" />
@@ -288,7 +288,7 @@ export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSe
               <>
                 <Separator />
                 <section className="flex flex-col gap-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wide text-red-500">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-error)]">
                     Zona pericolosa
                   </h3>
                   <p className="text-xs text-[var(--text-muted-ui)]">
@@ -300,7 +300,7 @@ export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSe
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-fit border-red-300 text-red-600 hover:bg-red-50 hover:border-red-400 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/30"
+                        className="w-fit border-[var(--color-error)] text-[var(--color-error)] hover:bg-[var(--color-destructive-hover-bg)]"
                         disabled={isDeleting}
                       >
                         {isDeleting ? (
@@ -323,7 +323,7 @@ export function ProjectSettingsDialog({ project, open, onOpenChange }: ProjectSe
                         <AlertDialogCancel>Annulla</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={handleDeleteProject}
-                          className="bg-red-600 hover:bg-red-700 text-white"
+                          className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
                         >
                           Elimina
                         </AlertDialogAction>
