@@ -1,4 +1,5 @@
 import { useEditor, EditorContent } from "@tiptap/react";
+import type { Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import Typography from "@tiptap/extension-typography";
@@ -13,11 +14,10 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useUIStore } from "@/store/ui.store";
 import { useEntriesStore } from "@/store/entries.store";
-import { updateEntry, indexEntry } from "@/api/entries";
+import { updateEntry } from "@/api/entries";
 import type { Entry, EntryType } from "@/types";
 
 import { EntryMeta } from "./EntryMeta";
-import { EditorToolbar } from "./EditorToolbar";
 
 const lowlight = createLowlight(common);
 
@@ -30,10 +30,11 @@ interface LocalMeta {
 
 interface EntryEditorProps {
   entry: Entry;
+  onEditorMount: (editor: Editor | null) => void;
 }
 
-export function EntryEditor({ entry }: EntryEditorProps) {
-  const { setDirty, setSaving, setIndexing } = useUIStore();
+export function EntryEditor({ entry, onEditorMount }: EntryEditorProps) {
+  const { setDirty, setSaving } = useUIStore();
   const { upsertEntry } = useEntriesStore();
 
   const [meta, setMeta] = useState<LocalMeta>({
@@ -67,6 +68,13 @@ export function EntryEditor({ entry }: EntryEditorProps) {
       scheduleAutosave();
     },
   });
+
+  // Expose editor instance to parent (MainPanel)
+  useEffect(() => {
+    onEditorMount(editor ?? null);
+    return () => onEditorMount(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editor]);
 
   // When the active entry changes, reset local state and editor content
   useEffect(() => {
@@ -126,18 +134,6 @@ export function EntryEditor({ entry }: EntryEditorProps) {
     }
   }
 
-  async function triggerIndex() {
-    setIndexing(true);
-    try {
-      const updated = await indexEntry(entryIdRef.current);
-      upsertEntry(updated);
-    } catch {
-      toast.error("Indicizzazione non riuscita. Verifica che il backend sia attivo e riprova.");
-    } finally {
-      setIndexing(false);
-    }
-  }
-
   function handleMetaChange(partial: Partial<LocalMeta>) {
     const next = { ...metaRef.current, ...partial };
     setMeta(next);
@@ -146,7 +142,7 @@ export function EntryEditor({ entry }: EntryEditorProps) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col">
       <EntryMeta
         entry={entry}
         title={meta.title}
@@ -158,10 +154,9 @@ export function EntryEditor({ entry }: EntryEditorProps) {
         onTagsChange={(v) => handleMetaChange({ tags: v })}
         onSummaryChange={(v) => handleMetaChange({ summary: v })}
       />
-      {editor && <EditorToolbar editor={editor} entry={entry} onIndex={triggerIndex} />}
       <EditorContent
         editor={editor}
-        className="flex-1 overflow-y-auto [&_.tiptap]:outline-none [&_.tiptap]:min-h-[200px] [&_.tiptap_h1]:text-xl [&_.tiptap_h1]:font-semibold [&_.tiptap_h1]:mb-2 [&_.tiptap_h2]:text-lg [&_.tiptap_h2]:font-medium [&_.tiptap_h2]:mb-2 [&_.tiptap_p]:mb-2 [&_.tiptap_ul]:list-disc [&_.tiptap_ul]:pl-5 [&_.tiptap_ul]:mb-2 [&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:pl-5 [&_.tiptap_ol]:mb-2 [&_.tiptap_blockquote]:border-l-2 [&_.tiptap_blockquote]:border-[#E5E5E5] [&_.tiptap_blockquote]:pl-3 [&_.tiptap_blockquote]:text-[#6B7280] [&_.tiptap_code]:bg-[#F0F0F0] [&_.tiptap_code]:px-1 [&_.tiptap_code]:rounded [&_.tiptap_code]:text-xs [&_.tiptap_pre]:bg-[#F0F0F0] [&_.tiptap_pre]:p-3 [&_.tiptap_pre]:rounded [&_.tiptap_pre]:text-xs [&_.tiptap_pre]:mb-2 [&_.tiptap_mark]:bg-yellow-100"
+        className="[&_.tiptap]:outline-none [&_.tiptap]:min-h-[200px] [&_.tiptap_h1]:text-xl [&_.tiptap_h1]:font-semibold [&_.tiptap_h1]:mb-2 [&_.tiptap_h2]:text-lg [&_.tiptap_h2]:font-medium [&_.tiptap_h2]:mb-2 [&_.tiptap_p]:mb-2 [&_.tiptap_ul]:list-disc [&_.tiptap_ul]:pl-5 [&_.tiptap_ul]:mb-2 [&_.tiptap_ol]:list-decimal [&_.tiptap_ol]:pl-5 [&_.tiptap_ol]:mb-2 [&_.tiptap_blockquote]:border-l-2 [&_.tiptap_blockquote]:border-[var(--border-ui)] [&_.tiptap_blockquote]:pl-3 [&_.tiptap_blockquote]:text-[var(--text-muted-ui)] [&_.tiptap_code]:bg-[var(--bg-hover)] [&_.tiptap_code]:px-1 [&_.tiptap_code]:rounded [&_.tiptap_code]:text-xs [&_.tiptap_pre]:bg-[var(--bg-subtle)] [&_.tiptap_pre]:p-3 [&_.tiptap_pre]:rounded [&_.tiptap_pre]:text-xs [&_.tiptap_pre]:mb-2 [&_.tiptap_mark]:bg-yellow-100"
       />
     </div>
   );

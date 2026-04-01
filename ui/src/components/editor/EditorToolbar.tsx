@@ -16,7 +16,12 @@ import {
   Trash2,
   BrainCircuit,
   Loader2,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Clock,
 } from "lucide-react";
+import type { VectorStatus } from "@/types";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -62,6 +67,40 @@ function Divider() {
   return <div className="w-px h-4 bg-[var(--border-ui)] mx-0.5 self-center" />
 }
 
+function StatusChip({ status }: { status: VectorStatus }) {
+  if (status === "indexed") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--color-success-bg)] text-[var(--color-success)]">
+        <CheckCircle2 size={11} />
+        Indicizzata
+      </span>
+    );
+  }
+  if (status === "outdated") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--color-warning-bg)] text-[var(--color-warning)]">
+        <AlertCircle size={11} />
+        Modificata
+      </span>
+    );
+  }
+  if (status === "error") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--color-error-bg)] text-[var(--color-error)]">
+        <AlertTriangle size={11} />
+        Errore
+      </span>
+    );
+  }
+  // pending
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--bg-hover)] text-[var(--text-muted-ui)]">
+      <Clock size={11} />
+      Da indicizzare
+    </span>
+  );
+}
+
 interface EditorToolbarProps {
   editor: Editor;
   entry: Entry;
@@ -88,7 +127,9 @@ export function EditorToolbar({ editor, entry, onIndex }: EditorToolbarProps) {
   }
 
   return (
-    <div className="flex items-center gap-0.5 flex-wrap px-2 py-1.5 rounded-lg bg-[var(--bg-subtle)] border border-[var(--border-ui)] mb-6">
+    <div
+      className="flex items-center gap-0.5 flex-wrap px-4 py-2 border-b border-[var(--border-ui)] bg-background"
+    >
       <ToolBtn
         onClick={() => editor.chain().focus().toggleBold().run()}
         active={editor.isActive("bold")}
@@ -186,19 +227,29 @@ export function EditorToolbar({ editor, entry, onIndex }: EditorToolbarProps) {
       <div className="flex-1" />
       <Divider />
 
+      {!isIndexing && <StatusChip status={entry.vector_status} />}
+
       <button
         type="button"
         title="Indicizza (embedding)"
         disabled={isIndexing}
         onClick={onIndex}
-        className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-[var(--text-muted-ui)] hover:bg-[var(--bg-hover)] hover:text-foreground disabled:opacity-50 transition-colors"
+        className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-[var(--text-muted-ui)] hover:bg-[var(--bg-hover)] hover:text-foreground transition-colors disabled:opacity-50"
       >
         {isIndexing ? (
           <Loader2 size={14} className="animate-spin" />
         ) : (
           <BrainCircuit size={14} />
         )}
-        <span>{isIndexing ? "Indicizzazione..." : "Indicizza"}</span>
+        <span>
+          {isIndexing
+            ? "Indicizzazione..."
+            : entry.vector_status === "error"
+            ? "Riprova"
+            : entry.vector_status === "outdated"
+            ? "Reindicizza"
+            : "Indicizza"}
+        </span>
       </button>
 
       <Divider />

@@ -1,6 +1,6 @@
 export type EntryType = "adr" | "postmortem" | "update" | "other";
 
-export type VectorStatus = "pending" | "indexed" | "outdated";
+export type VectorStatus = "pending" | "indexed" | "outdated" | "error";
 
 export interface Entry {
   id: string;
