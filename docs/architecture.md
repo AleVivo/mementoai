@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-03-23
+last_updated: 2026-03-31
 ---
 
 # MementoAI — Architecture
@@ -70,7 +70,7 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 
 ## Backend
 
-**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, pydantic-settings, PyJWT, pwdlib[argon2], litellm, langfuse, cryptography
+**Stack:** Python 3.11+, FastAPI, uvicorn, pymongo, pydantic-settings, PyJWT, pwdlib[argon2], litellm, langfuse, cryptography, llama-index, langgraph, sentence-transformers
 
 ### Domain Model
 
@@ -145,21 +145,27 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 Il package `services/` è organizzato per responsabilità:
 
 **`services/ai/`** — logica AI
-- `rag_service` — ricerca chunk + costruzione prompt + streaming SSE
-- `search_service` — embedding della query + vector search via `chunks_repository`
-- `agent` — loop ReAct: il modello ragiona iterativamente, sceglie un tool dal registry, esegue, osserva il risultato e itera fino alla risposta finale (max `max_steps` iterazioni)
-- `agent_registry` — catalogo dei tool disponibili all'agente: ricerca semantica, filtri per progetto/tipo, conteggi
-- `agent_tools` — implementazione Python dei tool: `search_semantic`, `filter_entries`, `get_entry`, `count_entries`
+- `rag_service` — pipeline RAG con LlamaIndex `RetrieverQueryEngine` + `ResponseSynthesizer` (streaming) + trasporto SSE
+- `search_service` — ricerca semantica sui chunk via retriever LlamaIndex
+- `agent_graph` — definizione del grafo LangGraph: nodi `agent` e `tools`, `ToolNode`, `tools_condition`, compilato con `MemorySaver` per persistenza conversazione
+- `agent_state` — `AgentState` TypedDict: `messages` (con `add_messages`), `project_ids`, `conversation_id`
+- `agent_service` — `run_agent_stream()`: esecuzione asincrona del grafo via `astream()` e trasporto SSE
+- `agent_tools` — tool LangChain (`@tool`) invocabili dall'agente: `search_semantic`, `filter_entries`, `get_entry`, `count_entries`; `project_ids` iniettato dallo stato via `InjectedState`
+
+**`services/ingestion/`** — pipeline di indicizzazione (LlamaIndex)
+- `pipeline` — orchestratore: reader → `HierarchicalNodeParser` (chunk 2048/512/128 token) → embedding → scrittura su vector store e docstore MongoDB
+- `readers/html_reader` — trasforma HTML TipTap in `Document` LlamaIndex con testo strutturato (heading → `## stile markdown`) e metadati; il chunking gerarchico è delegato a `pipeline.py`
+
+**`services/retrieval/`** — retrieval LlamaIndex
+- `llama_store` — singleton `MongoDBAtlasVectorSearch` (collection `chunks`) e singleton `MongoDocumentStore` (collection `node_docstore/data`) — analogo a `provider_cache` ma per gli store
+- `retriever` — `get_retriever()`: `AutoMergingRetriever` su `VectorIndexRetriever`; gestisce embedding query, `$vectorSearch` con pre-filter per `project_id`, merge gerarchico dei leaf node nel parent da docstore
+- `reranker` — `get_reranker()`: singleton `SentenceTransformerRerank` (`cross-encoder/ms-marco-MiniLM-L-6-v2`, locale, top_n=3)
 
 **`services/domain/`** — business logic di dominio
-- `entry_service` — CRUD entry + pipeline di indicizzazione (`index_entry`)
+- `entry_service` — CRUD entry + pipeline di indicizzazione (`index_entry` → `ingestion/pipeline.run()`)
 - `project_service` — CRUD progetti + gestione membri
 - `auth_service` — JWT, hashing argon2, `build_token_response`
 - `config_service` — merge schema+values, validazione, cifratura/decifratura secret
-
-**`services/processing/`** — servizi di trasformazione dati
-- `chunker` — parsing HTML TipTap → chunk per heading, max 300 token (cl100k_base / tiktoken)
-- `embedder` — `generate_embedding` (`@observe as_type="generation"`) — thin wrapper su provider embedding
 
 **`services/llm/`** — provider LLM (pattern Strategy)
 - `base` — ABC: `EmbeddingProvider`, `ChatProvider`, `ToolChatProvider`
@@ -256,22 +262,18 @@ config_values (MongoDB)
 **Gerarchia dei trace in Langfuse:**
 
 ```
-execute_rag                     ← @observe — pipeline RAG completa
-  └─ generate_embedding         ← @observe as_type="generation"
-       └─ litellm_request       ← automatico via langfuse_otel (model, tokens, latency)
+rag_call (root span)            ← start_observation manuale in stream_rag()
+  └─ litellm_request            ← automatico via langfuse_otel (model, tokens, latency)
 
-run_agent_stream (root span)    ← start_observation manuale (generator SSE)
-  ├─ agent_step                 ← @observe — ogni iterazione ReAct
-  │    └─ litellm_request       ← automatico via langfuse_otel
-  └─ agent_step (final)
-       └─ litellm_request
+agent_call (root span)          ← start_observation manuale in run_agent_stream()
+  └─ litellm_request            ← automatico via langfuse_otel per ogni step del grafo
 ```
 
-Le chiamate LiteLLM (`acompletion`, `aembedding`) diventano span figlie automaticamente grazie al contesto OpenTelemetry propagato da `@observe`. Non è necessario strumentare `litellm_provider.py` — il tracing è trasparente.
+Le chiamate LiteLLM (`acompletion`, `aembedding`) diventano span figlie automaticamente grazie al contesto OpenTelemetry propagato dal context manager `start_as_current_observation`. Non è necessario strumentare `litellm_provider.py` — il tracing è trasparente.
 
 **Separazione logica / trasporto SSE:**
 
-`rag_service` e `agent` separano la logica AI dal trasporto SSE perché `@observe` non supporta `AsyncGenerator` (funzioni con `yield`). La logica tracciabile è in funzioni normali (`_execute_rag`, `_run_agent_step`); il trasporto SSE è in generator separati (`stream_rag`, `run_agent_stream`) che li orchestrano.
+`rag_service` e `agent_service` separano la logica AI dal trasporto SSE perché `@observe` non supporta `AsyncGenerator` (funzioni con `yield`). Lo span viene aperto manualmente con `start_as_current_observation()` e aggiornato con `observation.update(output=...)` alla fine dello stream — garantito dal context manager anche in caso di disconnessione del client.
 
 **Lifecycle:**
 
@@ -406,12 +408,21 @@ PUT /entries/:id { content, title, ... }
 ```
 POST /entries/:id/index  (trigger: manuale tramite pulsante "Indicizza" nella toolbar)
   → Backend: legge content corrente
-  → chunker   → divide HTML in chunk per heading (max 300 token)
-  → embedding → vettore per ogni chunk (provider_cache.get_embedding_provider())
-               → generate_embedding() tracciata con @observe se Langfuse attivo
-  → MongoDB:  - cancella chunk precedenti
-              - inserisce nuovi chunk con embedding nella collection `chunks`
-              - imposta vector_status = "indexed"
+  → ingestion/pipeline.run()  [@observe entry_indexing]
+      → html_reader.read()
+          → BeautifulSoup: HTML → testo strutturato (## heading markdown-style)
+          → Document LlamaIndex con metadati (entry_id, project_id, entry_type, ...)
+      → HierarchicalNodeParser (chunk_sizes=[2048, 512, 128] token):
+          → root ~2048 token  → nodi padre (contesto ampio)
+          → medio ~512 token  → nodi intermedi
+          → leaf  ~128 token  → nodi foglia (embeddati)
+      → MongoDB:
+          - cancella nodi precedenti dal docstore (adelete_ref_doc)
+          - cancella vettori precedenti dal vector store (adelete)
+          - salva TUTTI i nodi in node_docstore/data (MongoDocumentStore)
+          - embedding dei soli leaf node (Settings.embed_model → LiteLLMEmbeddingProvider)
+          - salva leaf + embedding in collection chunks (MongoDBAtlasVectorSearch)
+          - imposta vector_status = "indexed"
   → Response: EntryResponse con vector_status aggiornato
   → UI: indicatore "✓ Indexed" (scompare dopo 3s)
 
@@ -433,14 +444,21 @@ User types in search box
 User types question in chat panel (modalità RAG)
   → POST /chat { question, project? }
   → Backend:
-      _execute_rag() [@observe]
-        → query embedded (generate_embedding [@observe])
-        → vector search sui chunk (collection `chunks`)
-        → top-k chunk recuperati + contesto costruito
-      stream_rag() [SSE transport]
-        → SSE stream aperto:
-            data: {"type":"sources","sources":[...]}
-            data: {"type":"token","content":"..."}   ← streaming LLM
+      stream_rag() [root span "rag_call" + SSE transport]
+        → _execute_rag():
+            → RetrieverQueryEngine.aquery(question)
+                → AutoMergingRetriever:
+                    → embedding query (Settings.embed_model)
+                    → $vectorSearch su collection chunks (pre-filter project_id)
+                    → AutoMerging: se leaf fratelli ≥ soglia → sostituisce con parent da node_docstore
+                → SentenceTransformerRerank (cross-encoder): riordina per rilevanza, top_n=3
+                → ResponseSynthesizer (COMPACT + streaming):
+                    → costruisce prompt con ChatPromptTemplate + chunk reranked
+                    → streaming LLM (Settings.llm → LiteLLMChatProvider)
+            → ritorna AsyncStreamingResponse
+        → SSE stream:
+            data: {"type":"token","content":"..."}   ← streaming LLM (per-token)
+            data: {"type":"sources","sources":[...]} ← dopo lo stream (source_nodes disponibili)
             data: {"type":"done"}
   → Answer rendered as markdown in chat bubble
 ```
@@ -448,21 +466,27 @@ User types question in chat panel (modalità RAG)
 ### Agent Chat
 ```
 User types question in chat panel (modalità Agent)
-  → POST /agent { question, project?, max_steps }
+  → POST /agent { question, project?, conversation_id? }
   → Backend:
-      run_agent_stream() [root span manuale + SSE transport]
-        → loop ReAct — max max_steps iterazioni:
-            _run_agent_step() [@observe]
-              1. LLM ragiona sull'input
-              2. Sceglie un tool dal registry
-              3. Esegue il tool
-            → evento 'step' al client
-        → risposta finale in streaming
-      → SSE stream:
-          data: {"type":"reasoning","content":"..."}
-          data: {"type":"step","tool":"...","args":{},"result":{}}
-          data: {"type":"token","content":"..."}
-          data: {"type":"done","steps":[...],"model":"..."}
+      run_agent_stream() [root span "agent_call" + SSE transport]
+        → grafo LangGraph (StateGraph compilato con MemorySaver):
+            AgentState: { messages, project_ids, conversation_id }
+            thread_id = conversation_id o nuovo UUID (persistenza conversazione)
+            graph.astream(input_state, stream_mode="messages"):
+              nodo "agent":
+                LLM.bind_tools(tools).invoke(SystemMessage + messages)
+                → se tool_call_chunks → reasoning (nome tool in costruzione)
+                → se content → token della risposta finale
+              nodo "tools" (ToolNode):
+                esegue il tool scelto (project_ids da InjectedState)
+                → ToolMessage con risultato
+              tools_condition → "tools" o END
+        → SSE stream:
+            data: {"type":"session","conversation_id":"..."}  ← thread_id per continuare la chat
+            data: {"type":"reasoning","content":"<nome_tool>"}
+            data: {"type":"step","tool":"...","result":"..."}
+            data: {"type":"token","content":"..."}
+            data: {"type":"done","steps":[...],"model":"..."}
 ```
 
 ## Deployment

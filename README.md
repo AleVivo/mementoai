@@ -211,9 +211,9 @@ La configurazione è applicata immediatamente senza riavvio. Per disabilitare il
 
 | Trace | Contenuto |
 |---|---|
-| `execute_rag` | Pipeline RAG completa: vector search, costruzione contesto, chiamata LLM |
-| `generate_embedding` | Ogni chiamata embedding con model e token count |
-| `agent_step` | Ogni step del loop ReAct: reasoning, tool chiamato, argomenti, risultato |
+| `rag_call` | Pipeline RAG completa: retrieval, reranking, sintesi risposta LLM, token streaming |
+| `entry_indexing` | Pipeline di indicizzazione: parsing HTML, chunking gerarchico, embedding e scrittura su MongoDB |
+| `agent_call` | Conversazione agente LangGraph: tutti gli step del grafo (agent + tool nodes) |
 | `litellm_request` | Ogni chiamata LLM con prompt, risposta, token, latenza (span figlia automatica) |
 
 ---
@@ -244,20 +244,26 @@ MementoAI/
 │   ├── observability/
 │   │   └── langfuse_integration.py  # Lifecycle Langfuse: setup, teardown, flush, is_active
 │   ├── services/
-│   │   ├── ai/           # Logica AI: RAG, ricerca semantica, agente ReAct
-│   │   │   ├── rag_service.py    # Ricerca chunk + costruzione prompt + streaming SSE
-│   │   │   ├── search_service.py # Embedding query + vector search
-│   │   │   ├── agent.py          # Loop ReAct: ragiona → tool → osserva → risponde
-│   │   │   ├── agent_registry.py # Catalogo tool disponibili all'agente
-│   │   │   └── agent_tools.py    # Implementazione Python dei tool
+│   │   ├── ai/           # Logica AI: RAG, ricerca semantica, agente LangGraph
+│   │   │   ├── rag_service.py    # Pipeline RAG con LlamaIndex QueryEngine + streaming SSE
+│   │   │   ├── search_service.py # Ricerca semantica via retriever LlamaIndex
+│   │   │   ├── agent_graph.py    # Grafo LangGraph: StateGraph con nodi agent/tools e MemorySaver
+│   │   │   ├── agent_state.py    # AgentState TypedDict (messages, project_ids, conversation_id)
+│   │   │   ├── agent_service.py  # run_agent_stream(): esecuzione grafo + trasporto SSE
+│   │   │   └── agent_tools.py    # Tool LangChain (@tool): search_semantic, filter_entries, get_entry, count_entries
+│   │   ├── ingestion/    # Pipeline di indicizzazione LlamaIndex
+│   │   │   ├── pipeline.py       # Orchestratore: reader → HierarchicalNodeParser → embedding → MongoDB
+│   │   │   └── readers/
+│   │   │       └── html_reader.py # HTML TipTap → Document LlamaIndex con testo strutturato
+│   │   ├── retrieval/    # Retrieval LlamaIndex
+│   │   │   ├── llama_store.py    # Singleton MongoDBAtlasVectorSearch + MongoDocumentStore
+│   │   │   ├── retriever.py      # get_retriever(): AutoMergingRetriever con pre-filter project_id
+│   │   │   └── reranker.py       # get_reranker(): SentenceTransformerRerank cross-encoder locale
 │   │   ├── domain/       # Business logic di dominio
 │   │   │   ├── entry_service.py   # CRUD entry + pipeline di indicizzazione
 │   │   │   ├── project_service.py # CRUD progetti + gestione membri
 │   │   │   ├── auth_service.py    # JWT, hashing argon2, build_token_response
 │   │   │   └── config_service.py  # Merge schema+values, validazione, cifratura secret
-│   │   ├── processing/
-│   │   │   ├── chunker.py        # HTML → chunk per heading, max 300 token
-│   │   │   └── embedder.py       # generate_embedding (@observe) — thin wrapper su provider
 │   │   └── llm/          # Astrazione LLM (pattern Strategy)
 │   │       ├── base.py
 │   │       ├── factory.py          # Re-export da provider_cache (backward compat)
@@ -339,15 +345,19 @@ L'indicizzazione è **manuale** — si avvia cliccando il pulsante "Indicizza" n
 
 ```
 POST /entries/{id}/index
-  1. Imposta vector_status = indexed
-  2. Chunking HTML (BeautifulSoup)
-       - divide per heading h1/h2/h3 — ogni sezione diventa un chunk
-       - max 300 token per chunk (tokenizer cl100k_base via tiktoken)
-       - soglia minima 30 token — chunk più piccoli vengono fusi
-       - liste e blocchi codice trattati come unità atomiche
-  3. Embedding di ogni chunk → provider embedding attivo (default: nomic-embed-text 768 dim)
-  4. Salvataggio chunk nella collection MongoDB `chunks`
+  1. html_reader: HTML TipTap → testo strutturato (heading → ## markdown)
+                  → Document LlamaIndex con metadati (entry_id, project_id, entry_type, ...)
+  2. HierarchicalNodeParser (chunk_sizes=[2048, 512, 128] token):
+       - root   ~2048 token → nodi padre, contesto ampio (AutoMergingRetriever)
+       - medio  ~512  token → nodi intermedi
+       - leaf   ~128  token → nodi foglia (unici ad essere embeddati)
+  3. MongoDB — scrittura:
+       - TUTTI i nodi → collection node_docstore/data (MongoDocumentStore)
+       - leaf + embedding → collection chunks (MongoDBAtlasVectorSearch)
+       - imposta vector_status = indexed
 ```
+
+Al recupero (`/chat`, `/search`, `/agent`), l'`AutoMergingRetriever` usa `node_docstore` per espandere i leaf node in nodi padre se abbastanza fratelli vengono recuperati insieme — aumenta il contesto passato all'LLM senza aumentare il numero di chiamate embedding.
 
 Summary e tag dell'entry sono **sempre manuali** — inseriti dall'utente nell'editor.
 
@@ -355,7 +365,9 @@ Summary e tag dell'entry sono **sempre manuali** — inseriti dall'utente nell'e
 
 ## MongoDB — Vector Search Index
 
-La ricerca vettoriale opera sulla collection **`chunks`** (non `entries`). L'indice viene creato automaticamente da `scripts/seed.py` al primo avvio — non è necessario crearlo manualmente.
+La ricerca vettoriale opera sulla collection **`chunks`** (leaf node con embedding). I nodi padre (root ~2048t, medi ~512t) sono conservati nella collection **`node_docstore/data`** — nessun indice vettoriale necessario su questa collection.
+
+L'indice viene creato automaticamente da `scripts/seed.py` al primo avvio — non è necessario crearlo manualmente.
 
 Se necessario, è possibile ricrearlo manualmente dalla shell di MongoDB:
 
@@ -375,16 +387,14 @@ db.chunks.createSearchIndex(
       },
       {
         type: "filter",
-        path: "projectId"
-      },
-      {
-        type: "filter",
-        path: "entry_type"
+        path: "metadata.project_id"
       }
     ]
   }
 )
 ```
+
+> **Nota:** LlamaIndex scrive i metadati sotto il campo `metadata` (oggetto nested). Il path del filtro è `metadata.project_id`, non `projectId` al top-level.
 
 Verifica che lo status sia `READY` prima di usare `/search`, `/chat` e `/agent`:
 
