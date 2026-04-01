@@ -25,7 +25,7 @@ export function RegisterPage({ onSwitchToLogin }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      setError("Le password non coincidono.");
       return;
     }
     setError(null);
@@ -35,7 +35,13 @@ export function RegisterPage({ onSwitchToLogin }: Props) {
       const { access_token, refresh_token } = await loginUser(email, password);
       setAuth(access_token, refresh_token, profile);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Registration failed");
+      console.error("Registration error:", err);
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("400")) {
+        setError("Email già registrata. Prova ad accedere.");
+      } else {
+        setError("Registrazione non riuscita. Verifica la connessione e riprova.");
+      }
     } finally {
       setIsLoading(false);
     }

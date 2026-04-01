@@ -4,9 +4,11 @@ import type { Project } from "../types";
 interface ProjectsState {
   projects: Project[];
   isLoading: boolean;
+  error: string | null;
 
   setProjects: (projects: Project[]) => void;
   setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
   upsertProject: (project: Project) => void;
   removeProject: (id: string) => void;
 }
@@ -14,9 +16,11 @@ interface ProjectsState {
 export const useProjectsStore = create<ProjectsState>((set) => ({
   projects: [],
   isLoading: false,
+  error: null,
 
-  setProjects: (projects) => set({ projects }),
+  setProjects: (projects) => set({ projects, error: null }),
   setLoading: (loading) => set({ isLoading: loading }),
+  setError: (error) => set({ error }),
   upsertProject: (project) =>
     set((s) => {
       const exists = s.projects.some((p) => p.id === project.id);

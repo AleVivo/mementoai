@@ -145,11 +145,12 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 Il package `services/` è organizzato per responsabilità:
 
 **`services/ai/`** — logica AI
+- `sse` — factory functions tipizzate per la formattazione degli eventi SSE (`token_event`, `step_event`, `reasoning_event`, `done_event`, `error_event`, ecc.); TypedDict con discriminante `Literal` garantiscono payload well-formed a compile time; usato da `rag_service` e `agent_service`
 - `rag_service` — pipeline RAG con LlamaIndex `RetrieverQueryEngine` + `ResponseSynthesizer` (streaming) + trasporto SSE
 - `search_service` — ricerca semantica sui chunk via retriever LlamaIndex
 - `agent_graph` — definizione del grafo LangGraph: nodi `agent` e `tools`, `ToolNode`, `tools_condition`, compilato con `MemorySaver` per persistenza conversazione
 - `agent_state` — `AgentState` TypedDict: `messages` (con `add_messages`), `project_ids`, `conversation_id`
-- `agent_service` — `run_agent_stream()`: esecuzione asincrona del grafo via `astream()` e trasporto SSE; emette `tool_start` alla prima occorrenza del nome per ogni tool call (dai `tool_call_chunks`), `step` dopo l'esecuzione del tool, e `reasoning` per i token di thinking (DeepSeek-R1/Qwen3 via `additional_kwargs["reasoning_content"]`; Anthropic extended thinking via blocchi `{"type":"thinking"}`); modelli standard non emettono reasoning
+- `agent_service` — `run_agent_stream()`: esecuzione asincrona del grafo via `astream()` e trasporto SSE; emette `tool_start` alla prima occorrenza del nome per ogni tool call (dai `tool_call_chunks`), `step` dopo l'esecuzione del tool, e `reasoning` per i token di thinking (DeepSeek-R1/Qwen3 via `additional_kwargs["reasoning_content"]`; Anthropic extended thinking via blocchi `{"type":"thinking"}`); modelli standard non emettono reasoning; errori nel loop emettono evento SSE `error` prima di rilanciare l'eccezione
 - `agent_tools` — tool LangChain (`@tool`) invocabili dall'agente: `search_semantic`, `filter_entries`, `get_entry`, `count_entries`; `project_ids` iniettato dallo stato via `InjectedState`
 
 **`services/ingestion/`** — pipeline di indicizzazione (LlamaIndex)

@@ -26,7 +26,8 @@ export function LoginPage({ onSwitchToRegister }: Props) {
       const { access_token, refresh_token, user } = await loginUser(email, password);
       setAuth(access_token, refresh_token, user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      console.error("Login error:", err);
+      setError("Credenziali non valide. Controlla email e password e riprova.");
     } finally {
       setIsLoading(false);
     }

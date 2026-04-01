@@ -66,14 +66,14 @@ ui/                          ← Tauri frontend root
 │   │   │   └── ChatHistory.tsx     ← ScrollArea with auto-scroll to bottom
 │   │   └── ui/                     ← shadcn/ui components (auto-generated)
 │   ├── store/
-│   │   ├── entries.store.ts        ← Zustand: entries state + actions
-│   │   ├── projects.store.ts       ← Zustand: lista progetti + actions
+│   │   ├── entries.store.ts        ← Zustand: entries + isLoading + error (string|null); setError propagato da useEntries su fetch fallito
+│   │   ├── projects.store.ts       ← Zustand: lista progetti + isLoading + error (string|null); setError propagato da useProjects su fetch fallito
 │   │   ├── ui.store.ts             ← Zustand: sidebar open, active entry, chat open, dirty/saving/indexing state, chatMode, isAdminConsoleOpen
 │   │   ├── auth.store.ts           ← Zustand: token, refreshToken, user; persistiti in localStorage
 │   │   └── chat.store.ts           ← Zustand: messages per projectId (chiave "__all__" per scope globale); actions: addPendingStep (tool_start) / addStep (sostituisce pending con risultato)
 │   ├── hooks/
-│   │   ├── useEntries.ts           ← Fetch entries on project change, popola store
-│   │   ├── useProjects.ts          ← Fetch progetti dell'utente, popola store
+│   │   ├── useEntries.ts           ← Fetch entries on project change, popola store; propaga errori a entries.store.error; espone refetch() come funzione di retry
+│   │   ├── useProjects.ts          ← Fetch progetti dell'utente, popola store; propaga errori a projects.store.error; espone refetch() come funzione di retry
 │   │   ├── useSearch.ts            ← Debounced semantic search (300ms)
 │   │   ├── useChat.ts              ← send(question) → POST /chat o POST /agent in base a chatMode
 │   │   └── useKeyboardShortcuts.ts ← Registra Ctrl+N/K/J a livello window

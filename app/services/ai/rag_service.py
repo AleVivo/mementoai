@@ -20,10 +20,11 @@ Separazione logica / trasporto SSE:
   estrae le sources dopo lo stream, chiude lo span Langfuse.
 """
 
-import json
 import logging
 import time
 from typing import AsyncGenerator
+
+from app.services.ai.sse import token_event, sources_event, done_event, error_event
 
 from langfuse import observe
 from llama_index.core import ChatPromptTemplate
@@ -195,18 +196,18 @@ async def stream_rag(
             # source_nodes è popolato solo DOPO aver consumato tutto il generator
             async for token in streaming_response.async_response_gen():
                 full_response += token
-                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+                yield token_event(token)
 
             # Dopo lo stream — source_nodes è ora popolato
             sources = _build_sources(streaming_response.source_nodes)
-            yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            yield sources_event(sources)
+            yield done_event()
 
             logger.info(f"[rag] STREAM DONE — total time: {time.perf_counter() - t0:.2f}s")
 
         except Exception as e:
             logger.exception(f"[rag] ERRORE durante lo stream: {e}")
-            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+            yield error_event(e)
             raise
 
         observation.update(output=full_response)

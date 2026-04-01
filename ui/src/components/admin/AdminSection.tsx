@@ -79,7 +79,8 @@ export function AdminSection({ section, onUpdated }: Props) {
       onUpdated(updated);
       toast.success(`${section.label} salvato`);
     } catch (err) {
-      toast.error(`Errore nel salvataggio: ${err instanceof Error ? err.message : "Errore sconosciuto"}`);
+      console.error("Config save error:", err);
+      toast.error(`Salvataggio di "${section.label}" non riuscito. Verifica i valori inseriti e riprova.`);
     } finally {
       setIsSaving(false);
     }

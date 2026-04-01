@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PanelLeftClose, MessageSquare, LogOut, Settings2, Plus, ShieldCheck } from "lucide-react";
+import { PanelLeftClose, MessageSquare, LogOut, Settings2, Plus, ShieldCheck, AlertCircle, RefreshCw } from "lucide-react";
 import { useUIStore } from "@/store/ui.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useEntriesStore } from "@/store/entries.store";
@@ -16,15 +16,15 @@ import type { Project } from "@/types";
 
 export function Sidebar() {
   const { activeProjectId, setActiveProjectId, toggleSidebar, toggleChat, setActiveEntryId } = useUIStore();
-  const { entries, isLoading } = useEntriesStore();
-  const { projects, isLoading: isLoadingProjects } = useProjectsStore();
+  const { entries, isLoading, error: entriesError } = useEntriesStore();
+  const { projects, isLoading: isLoadingProjects, error: projectsError } = useProjectsStore();
   const { user, logout } = useAuthStore();
   const [settingsProject, setSettingsProject] = useState<Project | null>(null);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const { toggleAdminConsole } = useUIStore();
 
-  useProjects();
-  useEntries();
+  const { refetch: refetchProjects } = useProjects();
+  const { refetch: refetchEntries } = useEntries();
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
 
@@ -62,6 +62,20 @@ export function Sidebar() {
 
         {isLoadingProjects && projects.length === 0 ? (
           <p className="text-xs text-[var(--text-muted-ui)] px-3 py-2">Caricamento...</p>
+        ) : projectsError ? (
+          <div className="flex flex-col gap-2 px-1 py-1">
+            <div className="flex items-start gap-1.5 text-xs text-destructive">
+              <AlertCircle size={12} className="mt-0.5 shrink-0" />
+              <span className="leading-tight">{projectsError}</span>
+            </div>
+            <button
+              onClick={refetchProjects}
+              className="flex items-center justify-center gap-1.5 w-full text-xs font-medium px-2 py-1.5 rounded-md border border-[var(--border-ui)] text-[var(--text-muted-ui)] hover:text-foreground hover:bg-[var(--bg-hover)] transition-colors"
+            >
+              <RefreshCw size={11} />
+              Riprova
+            </button>
+          </div>
         ) : projects.length === 0 ? (
           <p className="text-xs text-[var(--text-muted-ui)] px-3 py-2 italic">
             Nessun progetto. Creane uno!
@@ -113,6 +127,8 @@ export function Sidebar() {
             entries={entries}
             onSelect={setActiveEntryId}
             isLoading={isLoading}
+            error={entriesError}
+            onRetry={refetchEntries}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full gap-1 px-4 text-center">

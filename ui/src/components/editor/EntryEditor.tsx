@@ -10,6 +10,7 @@ import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import { common, createLowlight } from "lowlight";
 
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useUIStore } from "@/store/ui.store";
 import { useEntriesStore } from "@/store/entries.store";
 import { updateEntry, indexEntry } from "@/api/entries";
@@ -119,7 +120,7 @@ export function EntryEditor({ entry }: EntryEditorProps) {
       upsertEntry(updated);
       setDirty(false);
     } catch {
-      // Autosave is best-effort; silent failure
+      toast.error("Salvataggio non riuscito. Riprova o controlla la connessione al backend.");
     } finally {
       setSaving(false);
     }
@@ -131,7 +132,7 @@ export function EntryEditor({ entry }: EntryEditorProps) {
       const updated = await indexEntry(entryIdRef.current);
       upsertEntry(updated);
     } catch {
-      // silent
+      toast.error("Indicizzazione non riuscita. Verifica che il backend sia attivo e riprova.");
     } finally {
       setIndexing(false);
     }

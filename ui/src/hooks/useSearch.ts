@@ -26,6 +26,7 @@ export function useSearch(project?: string | null) {
         });
         setResults(data);
       } catch {
+        console.error("Search error");
         setResults([]);
       } finally {
         setIsSearching(false);
