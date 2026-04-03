@@ -5,7 +5,7 @@ from bson import ObjectId
 from fastapi import HTTPException, status
 from pymongo.errors import DuplicateKeyError
 
-from app.db.repositories import project_repository, entry_repository, chunks_repository
+from app.db.repositories import project_repository, entry_repository, chunks_repository, folder_repository
 from app.models.project import ProjectResponse, ProjectUpdate, ProjectCreate, AddMemberRequest, ProjectDocument, \
     MemberResponse
 from app.models.user import UserResponse
@@ -56,11 +56,26 @@ async def create_project(data: ProjectCreate, current_user: UserResponse) -> Pro
             detail=f"Un progetto con il nome '{data.name}' esiste già.",
         )
 
+    assert created.id is not None
+    try:
+        await folder_repository.create_root_folder(
+            project_id=created.id,
+            user_id=ObjectId(current_user.id),
+        )
+    except Exception as exc:
+        logger.error("Creazione root folder fallita per %s: %s — rollback in corso.", created.id, exc)
+        await project_repository.delete_project(str(created.id))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Impossibile creare il root folder. Creazione del progetto annullata.",
+        )
+
     try:
         await project_repository.add_project_member(str(created.id), current_user.id, "owner")
     except Exception as exc:
         logger.error("Inserimento project_member fallito per %s: %s — rollback in corso.", created.id, exc)
         await project_repository.delete_project(str(created.id))
+        await folder_repository.delete_folders_by_project_id(str(created.id))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Impossibile inizializzare la membership. Creazione del progetto annullata.",
@@ -118,9 +133,10 @@ async def delete_project(project_id: str, current_user: UserResponse) -> None:
             detail="Solo il proprietario può eliminare il progetto.",
         )
 
-    # Cascata: entries → chunks → project_members → project
-    await entry_repository.delete_entries_by_project_id(project_id)
+    # Cascata: chunks → entries → folders → project_members → project
     await chunks_repository.delete_chunks_by_project_id(project_id)
+    await entry_repository.delete_entries_by_project_id(project_id)
+    await folder_repository.delete_folders_by_project_id(project_id)
     await project_repository.delete_all_project_members(project_id)
     await project_repository.delete_project(project_id)
 

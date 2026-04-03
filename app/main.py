@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db.client import close_client, get_async_client
 from app.handlers import config_handlers
 from app.observability import langfuse_integration
-from app.routers import admin, entries, search, chat, agent, auth, project, users
+from app.routers import admin, entries, search, chat, agent, auth, project, users, folders
 from app.config import settings
 from app.services.llm import provider_cache
 
@@ -55,5 +55,6 @@ app.include_router(search.router, prefix="/search", tags=["search"])
 app.include_router(chat.router, prefix="/chat", tags=["chat"])
 app.include_router(agent.router, prefix="/agent", tags=["agent"])
 app.include_router(project.router, prefix="/project", tags=["project"])
+app.include_router(folders.router, prefix="/projects/{project_id}/folders", tags=["folders"])
 app.include_router(users.router, prefix="/users", tags=["users"])
 app.include_router(admin.router, prefix="/admin", tags=["admin"])

@@ -14,6 +14,7 @@ def doc_to_response(doc: EntryDocument) -> EntryResponse:
         created_at=doc.created_at,
         week=doc.week,
         vector_status=doc.vector_status,
+        folder_id=str(doc.folderId) if doc.folderId else None,
     )
 
 

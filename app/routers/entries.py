@@ -17,11 +17,21 @@ async def get_entries(
     project_id: Optional[str] = Query(default=None, description="Filter entries by project"),
     entry_type: Optional[str] = Query(default=None, description="Filter entries by entry_type"),
     week: Optional[str] = Query(default=None, description="Filter entries by week (format: YYYY-Www)"),
+    folder_id: Optional[str] = Query(default=None, description="Filter entries by folder (direct children only unless recursive=true)"),
+    recursive: bool = Query(default=False, description="Include entries in all descendant folders"),
     limit: int = Query(default=20, ge=1, le=100, description="Number of entries to return"),
     skip: int = Query(default=0, ge=0, description="Number of entries to skip for pagination"),
     _member: tuple = Depends(require_project_member)
 ):
-    return await entry_service.get_entries(project_id=project_id, entry_type=entry_type, week=week, limit=limit, skip=skip)
+    return await entry_service.get_entries(
+        project_id=project_id,
+        entry_type=entry_type,
+        week=week,
+        limit=limit,
+        skip=skip,
+        folder_id=folder_id,
+        recursive=recursive,
+    )
 
 @router.get("/{entry_id}", response_model=EntryResponse)
 async def get_entry_by_id(entry: EntryDocument = Depends(get_entry_and_verify_membership),

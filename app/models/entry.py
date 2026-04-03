@@ -21,6 +21,7 @@ class EntryCreate(BaseModel):
     entry_type: EntryType
     title: str
     project_id: str
+    folder_id: Optional[str] = None
     summary: Optional[str] = None
     tags: Optional[list[str]] = None
 
@@ -30,6 +31,7 @@ class EntryUpdate(BaseModel):
     title: Optional[str] = None
     summary: Optional[str] = None
     tags: Optional[list[str]] = None
+    folder_id: Optional[str] = None
 
 class EntryResponse(BaseModel):
     id: str
@@ -44,6 +46,7 @@ class EntryResponse(BaseModel):
     created_at: datetime
     week: str
     vector_status: VectorStatus
+    folder_id: Optional[str] = None
 
 class EntryDocument(BaseModel):
     id: Optional[PyObjectId] = Field(default=None, alias="_id")
@@ -58,5 +61,6 @@ class EntryDocument(BaseModel):
     created_at: datetime
     week: str
     vector_status: VectorStatus = VectorStatus.pending
+    folderId: Optional[ObjectId] = None
 
     model_config = {"arbitrary_types_allowed": True, "populate_by_name": True}

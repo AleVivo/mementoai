@@ -1,34 +1,93 @@
 import { useState } from "react";
 import { PanelLeftClose, MessageSquare, LogOut, Settings2, Plus, ShieldCheck, AlertCircle, RefreshCw, FolderPlus, ArrowUpLeft } from "lucide-react";
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core";
+import { toast } from "sonner";
 import { useUIStore } from "@/store/ui.store";
 import { useAuthStore } from "@/store/auth.store";
 import { useEntriesStore } from "@/store/entries.store";
 import { useProjectsStore } from "@/store/projects.store";
 import { useEntries } from "@/hooks/useEntries";
 import { useProjects } from "@/hooks/useProjects";
+import { useFolders } from "@/hooks/useFolders";
+import { updateEntry } from "@/api/entries";
 import { EntryList } from "@/components/entries/EntryList";
 import { NewEntryDialog } from "@/components/entries/NewEntryDialog";
 import { NewProjectDialog } from "@/components/projects/NewProjectDialog";
 import { ProjectSettingsDialog } from "@/components/projects/ProjectSettingsDialog";
+import { FolderTree } from "@/components/folders/FolderTree";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Project } from "@/types";
 
 export function Sidebar() {
-  const { activeProjectId, setActiveProjectId, toggleSidebar, toggleChat, setActiveEntryId } = useUIStore();
-  const { entries, isLoading, error: entriesError } = useEntriesStore();
+  const { activeProjectId, setActiveProjectId, toggleSidebar, toggleChat, setActiveEntryId, setActiveFolderId } = useUIStore();
+  const { entries, isLoading, error: entriesError, upsertEntry } = useEntriesStore();
   const { projects, isLoading: isLoadingProjects, error: projectsError } = useProjectsStore();
   const { user, logout } = useAuthStore();
   const [settingsProject, setSettingsProject] = useState<Project | null>(null);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
+  const [activeDrag, setActiveDrag] = useState<{ label: string } | null>(null);
   const { toggleAdminConsole } = useUIStore();
 
   const { refetch: refetchProjects } = useProjects();
   const { refetch: refetchEntries } = useEntries();
+  const { moveFolder } = useFolders();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+
+  function handleDragStart(event: DragStartEvent) {
+    const data = event.active.data.current as { title: string } | undefined;
+    setActiveDrag({ label: data?.title ?? "..." });
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    setActiveDrag(null);
+    const { active, over } = event;
+    if (!over) return;
+    const activeId = String(active.id);
+    const overId = String(over.id);
+    if (activeId === overId) return;
+
+    const isEntryDrag = activeId.startsWith("entry:");
+    const isFolderDrag = activeId.startsWith("folder:");
+    const activeItemId = isEntryDrag
+      ? activeId.slice("entry:".length)
+      : activeId.slice("folder:".length);
+    const isRootTarget = overId === "root";
+    const targetFolderId = isRootTarget ? null : overId.slice("folder:".length);
+
+    if (isEntryDrag) {
+      try {
+        const updated = await updateEntry(activeItemId, { folder_id: targetFolderId });
+        upsertEntry(updated);
+      } catch {
+        toast.error("Impossibile spostare la entry");
+      }
+    } else if (isFolderDrag) {
+      if (targetFolderId === activeItemId) return;
+      // Block drop onto a descendant of the dragged folder
+      const activeData = active.data.current as { path: string } | undefined;
+      const overData = over.data.current as { path: string } | undefined;
+      if (activeData && overData && overData.path.startsWith(activeData.path + "/")) return;
+      try {
+        await moveFolder(activeItemId, { new_parent_id: targetFolderId });
+      } catch {
+        toast.error("Impossibile spostare la cartella");
+      }
+    }
+  }
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
 
+  // Always show only root-level entries (no folder assigned).
+  // Folder contents are rendered inline inside the FolderTree when expanded.
+  const rootEntries = entries.filter((e) => e.folder_id === null);
+
   return (
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
     <aside className="flex flex-col w-64 shrink-0 h-full border-r border-[var(--border-ui)] bg-[var(--bg-subtle)]">
       {/* Header */}
       <div className="flex items-center justify-between px-4 h-12 border-b border-[var(--border-ui)]">
@@ -93,7 +152,7 @@ export function Sidebar() {
                 )}
               >
                 <button
-                  onClick={() => { setActiveProjectId(p.id); setActiveEntryId(null); }}
+                  onClick={() => { setActiveProjectId(p.id); setActiveEntryId(null); setActiveFolderId(null); }}
                   className={cn(
                     "flex-1 text-left text-sm px-3 py-2 truncate transition-colors",
                     activeProjectId === p.id
@@ -120,16 +179,19 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Entry list */}
+      {/* Folder tree + Entry list */}
       <div className="flex-1 overflow-y-auto">
         {activeProjectId ? (
-          <EntryList
-            entries={entries}
-            onSelect={setActiveEntryId}
-            isLoading={isLoading}
-            error={entriesError}
-            onRetry={refetchEntries}
-          />
+          <>
+            <FolderTree onSelectEntry={setActiveEntryId} />
+            <EntryList
+              entries={rootEntries}
+              onSelect={setActiveEntryId}
+              isLoading={isLoading}
+              error={entriesError}
+              onRetry={refetchEntries}
+            />
+          </>
         ) : projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center">
             <FolderPlus size={20} className="text-[var(--text-muted-ui)] opacity-50" />
@@ -224,5 +286,14 @@ export function Sidebar() {
       {/* New project dialog */}
       <NewProjectDialog open={isNewProjectOpen} onOpenChange={setIsNewProjectOpen} />
     </aside>
+
+    <DragOverlay dropAnimation={null}>
+      {activeDrag ? (
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md border border-[var(--border-ui)] bg-[var(--bg-subtle)] text-xs font-medium shadow-lg opacity-90 pointer-events-none">
+          {activeDrag.label}
+        </div>
+      ) : null}
+    </DragOverlay>
+    </DndContext>
   );
 }

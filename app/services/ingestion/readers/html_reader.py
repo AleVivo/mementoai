@@ -59,16 +59,19 @@ def read(
         f"{len(structured_text)} chars estratti"
     )
 
+    metadata: dict = {
+        MetadataFields.ENTRY_ID:    entry_id,
+        MetadataFields.PROJECT_ID:  project_id,
+        MetadataFields.ENTRY_TYPE:  entry_type,
+        MetadataFields.ENTRY_TITLE: entry_title,
+        MetadataFields.CREATED_AT:  created_at.isoformat(),
+        MetadataFields.FOLDER_ID:   kwargs.get("folder_id"),  # str | None
+    }
+
     return [Document(
         id_=entry_id,       # doc_id = entry_id → usato da delete_ref_doc() per cleanup
         text=structured_text,
-        metadata={
-            MetadataFields.ENTRY_ID:    entry_id,
-            MetadataFields.PROJECT_ID:  project_id,
-            MetadataFields.ENTRY_TYPE:  entry_type,
-            MetadataFields.ENTRY_TITLE: entry_title,
-            MetadataFields.CREATED_AT:  created_at.isoformat(),
-        },
+        metadata=metadata,
         excluded_embed_metadata_keys=_ALL_METADATA_KEYS,
         excluded_llm_metadata_keys=[
             MetadataFields.ENTRY_ID,

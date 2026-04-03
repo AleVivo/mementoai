@@ -29,6 +29,7 @@ class MetadataFields:
     """
     ENTRY_ID    = "entry_id"       # str (ObjectId serializzato come stringa)
     PROJECT_ID  = "project_id"     # str — campo indicizzato per pre-filter
+    FOLDER_ID   = "folder_id"      # str | None — ObjectId cartella come stringa
     ENTRY_TYPE  = "entry_type"     # "adr" | "postmortem" | "update"
     ENTRY_TITLE = "entry_title"    # str
     HEADING     = "heading"        # str | None — heading TipTap del chunk

@@ -10,10 +10,10 @@ interface UIState {
   isChatOpen: boolean;
   isSidebarOpen: boolean;
   activeProjectId: string | null;
+  activeFolderId: string | null;
   isNewEntryOpen: boolean;
   chatMode: ChatMode;
   isAdminConsoleOpen: boolean;
-
 
   setActiveEntryId: (id: string | null) => void;
   setDirty: (dirty: boolean) => void;
@@ -22,6 +22,7 @@ interface UIState {
   toggleChat: () => void;
   toggleSidebar: () => void;
   setActiveProjectId: (id: string | null) => void;
+  setActiveFolderId: (id: string | null) => void;
   setNewEntryOpen: (open: boolean) => void;
   setChatMode: (mode: ChatMode) => void;
   toggleAdminConsole: () => void;
@@ -35,6 +36,7 @@ export const useUIStore = create<UIState>((set) => ({
   isChatOpen: false,
   isSidebarOpen: true,
   activeProjectId: null,
+  activeFolderId: null,
   isNewEntryOpen: false,
   chatMode: "rag",
   isAdminConsoleOpen: false,
@@ -45,7 +47,8 @@ export const useUIStore = create<UIState>((set) => ({
   setIndexing: (indexing) => set({ isIndexing: indexing }),
   toggleChat: () => set((s) => ({ isChatOpen: !s.isChatOpen })),
   toggleSidebar: () => set((s) => ({ isSidebarOpen: !s.isSidebarOpen })),
-  setActiveProjectId: (id) => set({ activeProjectId: id }),
+  setActiveProjectId: (id) => set({ activeProjectId: id, activeFolderId: null }),
+  setActiveFolderId: (id) => set({ activeFolderId: id }),
   setNewEntryOpen: (open) => set({ isNewEntryOpen: open }),
   setChatMode: (mode) => set({ chatMode: mode }),
   toggleAdminConsole: () => set((s) => ({ isAdminConsoleOpen: !s.isAdminConsoleOpen })),

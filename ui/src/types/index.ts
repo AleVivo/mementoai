@@ -15,6 +15,7 @@ export interface Entry {
   vector_status: VectorStatus;
   created_at: string;
   week: string;
+  folder_id: string | null;
 }
 
 export interface EntryCreate {
@@ -22,6 +23,7 @@ export interface EntryCreate {
   content: string;
   entry_type: EntryType;
   project_id: string;
+  folder_id?: string | null;
   tags?: string[];
   summary?: string;
 }
@@ -32,6 +34,34 @@ export interface EntryUpdate {
   entry_type?: EntryType;
   tags?: string[];
   summary?: string;
+  folder_id?: string | null;
+}
+
+// #### FOLDER TYPES ####
+
+export interface FolderResponse {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  path: string;
+  created_at: string;
+}
+
+export interface FolderTree extends FolderResponse {
+  children: FolderTree[];
+}
+
+export interface FolderCreate {
+  name: string;
+  parent_id?: string | null;
+}
+
+export interface FolderUpdate {
+  name: string;
+}
+
+export interface FolderMove {
+  new_parent_id: string | null;
 }
 
 // #### SEARCH TYPES ####

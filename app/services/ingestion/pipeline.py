@@ -63,6 +63,7 @@ async def run(
     entry_type: str,
     entry_title: str,
     created_at: datetime,
+    folder_id: str | None = None,
     **kwargs: object,
 ) -> int:
     """
@@ -96,6 +97,7 @@ async def run(
         entry_type=entry_type,
         entry_title=entry_title,
         created_at=created_at,
+        folder_id=folder_id,
         **kwargs,
     )
 

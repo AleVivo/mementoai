@@ -17,7 +17,9 @@ async def get_entries(
         entry_type: Optional[str],
         week: Optional[str],
         limit: int,
-        skip: int) -> list[EntryDocument]:
+        skip: int,
+        folder_ids: Optional[list[ObjectId]] = None,
+) -> list[EntryDocument]:
     query: dict = {}
     if project_ids:
         oids = [ObjectId(pid) for pid in project_ids]
@@ -26,6 +28,8 @@ async def get_entries(
         query["entry_type"] = entry_type
     if week:
         query["week"] = week
+    if folder_ids is not None:
+        query["folderId"] = {"$in": folder_ids} if len(folder_ids) != 1 else folder_ids[0]
 
     cursor = get_db().entries.find(query).sort("created_at", -1).skip(skip).limit(limit)
     docs = await cursor.to_list(length=limit)
@@ -77,5 +81,9 @@ async def update_entry(entry_id: str, fields: dict) -> Optional[EntryDocument]:
     return EntryDocument.model_validate(doc) if doc else None
 
 async def delete_entries_by_project_id(project_id: str) -> int:
-    result = await get_db().entries.delete_many({"project_id": project_id})
+    try:
+        p_oid = ObjectId(project_id)
+    except InvalidId:
+        return 0
+    result = await get_db().entries.delete_many({"projectId": p_oid})
     return result.deleted_count
