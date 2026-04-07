@@ -226,6 +226,7 @@ MementoAI/
 │   ├── main.py           # FastAPI entrypoint + lifespan (avvia run_all_handlers)
 │   ├── config.py         # Settings con pydantic-settings (.env)
 │   ├── models/           # Modelli Pydantic (Entry, Project, User, Config...)
+│   │   └── folder.py      # Schemi cartelle: create/update/move, tree response
 │   ├── routers/          # Endpoint API
 │   │   ├── entries.py
 │   │   ├── search.py
@@ -234,6 +235,7 @@ MementoAI/
 │   │   ├── auth.py
 │   │   ├── project.py
 │   │   ├── users.py
+│   │   ├── folders.py     # CRUD cartelle progetto: /projects/{project_id}/folders
 │   │   └── admin.py      # GET/PUT /admin/config — protetto da require_admin
 │   ├── dependencies/
 │   │   ├── auth.py       # get_current_user + require_admin
@@ -262,6 +264,7 @@ MementoAI/
 │   │   ├── domain/       # Business logic di dominio
 │   │   │   ├── entry_service.py   # CRUD entry + pipeline di indicizzazione
 │   │   │   ├── project_service.py # CRUD progetti + gestione membri
+│   │   │   ├── folder_service.py  # Gestione cartelle: create/rename/move/delete + tree
 │   │   │   ├── auth_service.py    # JWT, hashing argon2, build_token_response
 │   │   │   └── config_service.py  # Merge schema+values, validazione, cifratura secret
 │   │   └── llm/          # Astrazione LLM (pattern Strategy)
@@ -275,6 +278,7 @@ MementoAI/
 │       ├── client.py
 │       └── repositories/
 │           ├── entry_repository.py   # CRUD collection entries
+│           ├── folder_repository.py  # CRUD collection folders + move path cascata
 │           ├── project_repository.py # CRUD collection projects + project_members
 │           ├── users_repository.py   # CRUD collection users
 │           ├── chunks_repository.py  # insert/delete/vector search collection chunks
@@ -324,12 +328,17 @@ MementoAI/
 | `POST` | `/projects/{id}/members` | Aggiunge membro al progetto (solo owner) — `{ email, role }` |
 | `DELETE` | `/projects/{id}/members/{userId}` | Rimuove membro (solo owner) |
 | `GET` | `/users/search` | Ricerca utente per email — `?email=...` (usato per aggiungere membri) |
-| `POST` | `/entries` | Crea una nuova entry (no LLM — solo persistenza, `vector_status: pending`) |
-| `GET` | `/entries` | Lista entries con filtri (`project_id`, `type`, `week`, `limit`, `skip`) |
+| `POST` | `/entries` | Crea una nuova entry (no LLM — solo persistenza, `vector_status: pending`, `folder_id` opzionale) |
+| `GET` | `/entries` | Lista entries con filtri (`project_id`, `entry_type`, `week`, `folder_id`, `recursive`, `limit`, `skip`) |
 | `GET` | `/entries/{id}` | Singola entry per ID |
-| `PUT` | `/entries/{id}` | Aggiorna entry (no LLM — imposta `vector_status: outdated`) |
+| `PUT` | `/entries/{id}` | Aggiorna entry (no LLM — imposta `vector_status: outdated`, inclusi move cartella) |
 | `POST` | `/entries/{id}/index` | Indicizza manualmente: chunking HTML + embedding vettoriale |
 | `DELETE` | `/entries/{id}` | Elimina entry e relativi chunk |
+| `POST` | `/projects/{id}/folders` | Crea cartella (root o subfolder) |
+| `GET` | `/projects/{id}/folders` | Albero cartelle del progetto |
+| `PUT` | `/projects/{id}/folders/{folderId}` | Rinomina cartella |
+| `PUT` | `/projects/{id}/folders/{folderId}/move` | Sposta cartella con aggiornamento path discendenti |
+| `DELETE` | `/projects/{id}/folders/{folderId}` | Elimina cartella vuota (no figli/no entry) |
 | `POST` | `/search` | Ricerca semantica vettoriale sui chunk con score di cosine similarity |
 | `POST` | `/chat` | Chat RAG in streaming SSE — emette eventi `sources` (fonti), `token` (risposta incrementale) e `done`; `project_id` opzionale (omesso = tutta la KB) |
 | `POST` | `/agent` | Chat agente ReAct — usa tool (ricerca, filtri, conteggi) per rispondere in più step; `project_id` opzionale |
@@ -410,3 +419,4 @@ db.chunks.getSearchIndexes()
 |---|---|
 | [docs/architecture.md](docs/architecture.md) | Architettura del sistema, domain model, data flow dettagliato (autenticazione, create/save/index entry, RAG, agent, admin config update), admin console e configurazione dinamica dei provider,  strategia di autenticazione JWT e project-scoped access control | 
 | [docs/frontend-spec.md](docs/frontend-spec.md) | Specifiche frontend: stack tecnologico, struttura directory, TypeScript types, layout UI, configurazione TipTap, comportamenti UX (autosave, indicizzazione, chat, shortcut) |
+| [docs/theming.md](docs/theming.md) | Sistema di design token semantici (light/dark), mapping colori per tipo entry e stati UI, linee guida per usare token invece di classi colore hardcoded |

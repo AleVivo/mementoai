@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-04-01
+last_updated: 2026-04-07
 ---
 
 # MementoAI — Frontend Specification
@@ -18,8 +18,11 @@ last_updated: 2026-04-01
 | Rich text editor | **TipTap** | ^3.x | Block-based editor (Notion-like), React adapter |
 | Markdown rendering | **react-markdown** | latest | AI chat response rendering |
 | State management | **Zustand** | ^5.0 | Minimal, no boilerplate |
+| Drag and drop | **@dnd-kit/core** | latest | Drag-and-drop accessibile per entry/cartelle nella sidebar |
 | HTTP client | **fetch** (native) | — | Native browser fetch via Tauri WebView |
 | Icons | **Lucide React** | latest | Clean minimal icon set |
+
+Il sistema visuale usa token semantici centralizzati in `App.css` (entry type colors, status colors, destructive hover) con varianti light/dark. Vedi `docs/theming.md`.
 
 ## Project Structure (frontend)
 
@@ -31,6 +34,7 @@ ui/                          ← Tauri frontend root
 │   ├── api/
 │   │   ├── client.ts        ← Base fetch wrapper (baseURL = localhost:8000, JWT inject, refresh silenzioso)
 │   │   ├── entries.ts       ← /entries API calls
+│   │   ├── folders.ts       ← /projects/{project_id}/folders API calls
 │   │   ├── projects.ts      ← /projects API calls (CRUD + member management)
 │   │   ├── users.ts         ← /users/search API call (lookup per email)
 │   │   ├── search.ts        ← /search API calls
@@ -41,18 +45,23 @@ ui/                          ← Tauri frontend root
 │   │   │   ├── Sidebar.tsx         ← Left nav: projects + entries list + admin button (admin only)
 │   │   │   └── MainPanel.tsx       ← Right area: editor or search results
 │   │   ├── admin/
-│   │   │   ├── AdminConsole.tsx    ← Pagina scrollabile che sostituisce MainPanel quando isAdminOpen
+│   │   │   ├── AdminConsole.tsx    ← Pagina scrollabile che sostituisce MainPanel quando isAdminConsoleOpen
 │   │   │   ├── AdminSection.tsx    ← Card per singola sezione config (form + save button)
 │   │   │   └── AdminField.tsx      ← Field dinamico (text, secret, select, toggle)
 │   │   ├── editor/
-│   │   │   ├── EntryEditor.tsx     ← TipTap editor (autosave 1.5s; index SOLO manuale)
-│   │   │   ├── EditorToolbar.tsx   ← Toolbar formattazione + pulsante "Indicizza" manuale
-│   │   │   └── EntryMeta.tsx       ← Title, type, tags, summary (manuali), vector status badge
+│   │   │   ├── EntryEditor.tsx     ← TipTap editor (autosave 1.5s; espone onEditorMount)
+│   │   │   ├── EditorToolbar.tsx   ← Toolbar full-width fuori dallo scroll + StatusChip + pulsante indicizza/reindicizza/riprova
+│   │   │   └── EntryMeta.tsx       ← Meta compatte (title/type/author/project) + tags/summary espandibili + stato salvataggio
 │   │   ├── entries/
 │   │   │   ├── EntryList.tsx       ← Sidebar entries list
-│   │   │   ├── EntryListItem.tsx   ← Single entry row in sidebar
+│   │   │   ├── EntryListItem.tsx   ← Riga compatta con type dot colorato + context menu move
 │   │   │   ├── EntryTypeBadge.tsx  ← ADR / Postmortem / Update badge
-│   │   │   └── NewEntryDialog.tsx  ← shadcn Dialog for creating new entries
+│   │   │   └── NewEntryDialog.tsx  ← Dialog nuova entry con folder selector pre-selezionato da activeFolder
+│   │   ├── folders/
+│   │   │   ├── FolderTree.tsx      ← Albero cartelle + root drop zone + creazione cartella root
+│   │   │   ├── FolderNode.tsx      ← Nodo ricorsivo, expand/collapse, drag/drop, context menu
+│   │   │   ├── FolderPicker.tsx    ← Dialog "move to" con esclusione discendenti
+│   │   │   └── ContextMenu.tsx     ← Menu contestuale custom (rename/move/new subfolder/delete)
 │   │   ├── projects/
 │   │   │   ├── NewProjectDialog.tsx     ← Crea nuovo progetto (controlled)
 │   │   │   └── ProjectSettingsDialog.tsx ← Rinomina, descrizione, gestione membri
@@ -66,13 +75,15 @@ ui/                          ← Tauri frontend root
 │   │   │   └── ChatHistory.tsx     ← ScrollArea with auto-scroll to bottom
 │   │   └── ui/                     ← shadcn/ui components (auto-generated)
 │   ├── store/
+│   │   ├── folders.store.ts        ← Zustand: folder tree + isLoading + error
 │   │   ├── entries.store.ts        ← Zustand: entries + isLoading + error (string|null); setError propagato da useEntries su fetch fallito
 │   │   ├── projects.store.ts       ← Zustand: lista progetti + isLoading + error (string|null); setError propagato da useProjects su fetch fallito
-│   │   ├── ui.store.ts             ← Zustand: sidebar open, active entry, chat open, dirty/saving/indexing state, chatMode, isAdminConsoleOpen
+│   │   ├── ui.store.ts             ← Zustand: sidebar/chat/admin, active project/entry/folder, dirty/saving/indexing state
 │   │   ├── auth.store.ts           ← Zustand: token, refreshToken, user; persistiti in localStorage
 │   │   └── chat.store.ts           ← Zustand: messages per projectId (chiave "__all__" per scope globale); actions: addPendingStep (tool_start) / addStep (sostituisce pending con risultato)
 │   ├── hooks/
 │   │   ├── useEntries.ts           ← Fetch entries on project change, popola store; propaga errori a entries.store.error; espone refetch() come funzione di retry
+│   │   ├── useFolders.ts           ← Fetch tree cartelle sul progetto attivo + create/rename/move/delete con refetch
 │   │   ├── useProjects.ts          ← Fetch progetti dell'utente, popola store; propaga errori a projects.store.error; espone refetch() come funzione di retry
 │   │   ├── useSearch.ts            ← Debounced semantic search (300ms)
 │   │   ├── useChat.ts              ← send(question) → POST /chat o POST /agent in base a chatMode
@@ -100,7 +111,7 @@ Mirror the backend Pydantic models exactly:
 
 export type EntryType = 'adr' | 'postmortem' | 'update' | 'other';
 
-export type VectorStatus = 'pending' | 'indexed' | 'outdated';
+export type VectorStatus = 'pending' | 'indexed' | 'outdated' | 'error';
 
 export interface Entry {
   id: string;
@@ -115,6 +126,7 @@ export interface Entry {
   vector_status: VectorStatus;
   created_at: string;   // ISO datetime
   week: string;         // e.g. "2026-W10"
+  folder_id: string | null;
 }
 
 export interface EntryCreate {
@@ -122,6 +134,7 @@ export interface EntryCreate {
   content: string;
   entry_type: EntryType;
   project_id: string;   // ObjectId del progetto
+  folder_id?: string | null;
   summary?: string;
   tags?: string[];
 }
@@ -132,6 +145,32 @@ export interface EntryUpdate {
   entry_type?: EntryType;
   summary?: string;
   tags?: string[];
+  folder_id?: string | null;
+}
+
+export interface FolderResponse {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  path: string;
+  created_at: string;
+}
+
+export interface FolderTree extends FolderResponse {
+  children: FolderTree[];
+}
+
+export interface FolderCreate {
+  name: string;
+  parent_id?: string | null;
+}
+
+export interface FolderUpdate {
+  name: string;
+}
+
+export interface FolderMove {
+  new_parent_id: string | null;
 }
 
 export interface Project {
@@ -164,14 +203,12 @@ export interface SearchRequest {
 }
 
 export interface SearchResult {
-  id: string;
-  title: string;
-  content: string;
-  summary: string;
-  author: string;
-  projectId: string;
+  entry_id: string;
   entry_type: EntryType;
-  tags: string[];
+  entry_title: string;
+  project_id: string;
+  heading: string | null;
+  text: string;
   score: number;
 }
 
@@ -205,6 +242,7 @@ export type SSEEvent =
 export interface AgentRequest {
   question: string;
   project_id?: string;   // ObjectId del progetto (omesso = scope globale)
+  conversation_id?: string;
 }
 
 export interface AgentStep {
@@ -315,7 +353,7 @@ export interface ConfigUpdateRequest {
 └────────────┴─────────────────────────────────────────────┘
 ```
 
-**Admin console** sostituisce MainPanel quando `isAdminOpen = true`:
+**Admin console** sostituisce MainPanel quando `isAdminConsoleOpen = true`:
 ```
 ┌────────────┬────────────────────────────────────────────┐
 │  Projects  │  ⚙ Admin Console                           │
@@ -415,15 +453,16 @@ Extensions to enable for Notion-like experience:
 
 | Stato `vector_status` | Indicatore |
 |---|---|
-| `pending` | `⚠ In attesa` (amber) |
-| `outdated` | `⚠ Non indicizzato` (amber) |
-| indexing in corso | `⟳ Indicizzazione...` (spinner amber, pulsante disabilitato) |
-| `indexed` | `✓ Indicizzato` (verde, scompare dopo 3s) |
+| `pending` | `Da indicizzare` (muted) |
+| `outdated` | `Modificata` (warning) |
+| `error` | `Errore` (error) + CTA `Riprova` |
+| indexing in corso | `Indicizzazione...` (spinner, pulsante disabilitato) |
+| `indexed` | `Indicizzata` (success) |
 
 ### Admin Console
 - Accessibile solo agli utenti con `role: "admin"` — il pulsante `ShieldCheck` nel footer della sidebar non viene renderizzato per gli altri utenti
-- `isAdminOpen` nello store UI — quando `true` sostituisce `MainPanel` con `AdminConsole`
-- Selezionare una entry dalla sidebar chiude automaticamente la console (`setActiveEntryId` resetta `isAdminOpen`)
+- `isAdminConsoleOpen` nello store UI — quando `true` sostituisce `MainPanel` con `AdminConsole`
+- Selezionare una entry dalla sidebar chiude automaticamente la console (`setActiveEntryId` resetta `isAdminConsoleOpen`)
 - Le sezioni sono renderizzate dinamicamente dal backend (`GET /admin/config`) — aggiungere una nuova sezione su MongoDB non richiede modifiche al frontend
 - Ogni sezione è una card indipendente con il proprio stato locale — il salvataggio avviene per sezione, non globalmente
 - I campi `secret` mostrano `***` se già impostati, `null` se mai configurati — il valore reale non viene mai esposto
@@ -436,13 +475,14 @@ Extensions to enable for Notion-like experience:
 interface UIStore {
   activeEntryId: string | null;
   activeProjectId: string | null;  // ObjectId del progetto selezionato
+  activeFolderId: string | null;   // cartella selezionata nella sidebar
   isDirty: boolean;      // modifiche non ancora salvate su DB
   isSaving: boolean;     // PUT /entries/:id in corso
   isIndexing: boolean;   // POST /entries/:id/index in corso
   isChatOpen: boolean;
   isSidebarOpen: boolean;
   isNewEntryOpen: boolean;   // new entry dialog open
-  isAdminOpen: boolean;      // admin console aperta — sostituisce MainPanel
+  isAdminConsoleOpen: boolean; // admin console aperta — sostituisce MainPanel
   chatMode: 'rag' | 'agent';
 }
 ```
@@ -450,15 +490,27 @@ interface UIStore {
 ### Layout toolbar editor
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  Service Mesh ADR   ●                                      │
-│                              ⚠ Not indexed   [⟳ Index]    │
-│                                               [Save Cmd+S] │
+│ [B][I][H1][H2][List] ...      [Modificata] [Reindicizza] │
 └────────────────────────────────────────────────────────────┘
 ```
+
+La toolbar è renderizzata da `MainPanel` sopra l'area scrollabile dell'editor (non dentro `EntryEditor`) per rimanere sempre visibile durante lo scroll.
+
+### Folder management (sidebar)
+- Albero cartelle sopra la lista entry root (`folder_id = null`)
+- Empty state contestuale:
+  - nessun progetto: CTA `Nuovo progetto`
+  - progetti presenti ma nessun progetto attivo: hint direzionale `Seleziona un progetto`
+- Drag-and-drop:
+  - entry → cartella o root drop zone (update `folder_id`)
+  - cartella → cartella/root, con blocco drop su discendenti
+- Context menu su cartelle e entry: move, rename, new subfolder, delete
+- Delete cartella disabilitato se contiene subfolder o entry
 
 ### New entry
 Fill metadata modal (title, type — il progetto è automaticamente quello selezionato nella sidebar, l'autore viene ricavato dall'utente autenticato) → `POST /entries` → open in editor.
 Il backend crea con `vector_status = "pending"`, l'entry è subito modificabile.
+Il campo cartella è preselezionato dalla cartella attiva (`activeFolderId`), con fallback su radice progetto.
 
 ### Search
 Debounce 300ms su input → `POST /search` → display results. Le entry `outdated`/`pending`

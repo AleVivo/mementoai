@@ -1,6 +1,6 @@
 ---
 generated_by: GitHub Copilot (Claude Sonnet 4.6)
-last_updated: 2026-04-01
+last_updated: 2026-04-07
 ---
 
 # MementoAI — Architecture
@@ -50,6 +50,11 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 │  PUT  /entries/:id      ← save entry (no LLM)                               │
 │  POST /entries/:id/index← vectorize entry                                   │
 │  DEL  /entries/:id      ← delete entry                                      │
+│  POST /projects/:id/folders            ← create folder                       │
+│  GET  /projects/:id/folders            ← folder tree                         │
+│  PUT  /projects/:id/folders/:folderId  ← rename folder                       │
+│  PUT  /projects/:id/folders/:folderId/move ← move folder + cascade path      │
+│  DEL  /projects/:id/folders/:folderId  ← delete empty folder                 │
 │  POST /search           ← semantic vector search                            │
 │  POST /chat             ← RAG chat (SSE stream)                             │
 │  POST /agent            ← ReAct agent (SSE stream)                          │
@@ -100,7 +105,8 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 | `tags` | `list[str]` | Classification tags |
 | `created_at` | `datetime` | Creation timestamp |
 | `week` | `str` | ISO week string (e.g. `2026-W10`) |
-| `vector_status` | `VectorStatus` | `pending` \| `indexed` \| `outdated` |
+| `vector_status` | `VectorStatus` | `pending` \| `indexed` \| `outdated` \| `error` |
+| `folder_id` | `ObjectId \| null` | Cartella assegnata (null = radice progetto) |
 
 **Project** — namespace organizzativo:
 | Field | Type | Description |
@@ -119,6 +125,18 @@ MementoAI is a local-first knowledge base and AI chat application. It allows tea
 | `userId` | `ObjectId` | Riferimento all'utente membro |
 | `role` | `str` | `owner` \| `member` |
 | `addedAt` | `datetime` | Timestamp di aggiunta |
+
+**Folder** — struttura gerarchica per organizzare le entry nel progetto:
+| Field | Type | Description |
+|---|---|---|
+| `id` | `str` | MongoDB ObjectId |
+| `name` | `str` | Nome cartella (univoco tra sibling, case-insensitive) |
+| `project_id` | `ObjectId` | Riferimento al progetto |
+| `parent_id` | `ObjectId \| null` | Cartella padre (null = root-level) |
+| `path` | `str` | Percorso materializzato per move O(1)+cascade (`/{projectId}/{folderId}/...`) |
+| `is_root` | `bool` | Root tecnico del progetto (non visibile nella UI) |
+| `created_at` | `datetime` | Timestamp di creazione |
+| `created_by` | `ObjectId` | Utente autore |
 
 **ConfigSchema** — struttura della configurazione admin (read-only):
 | Field | Type | Description |
@@ -165,6 +183,7 @@ Il package `services/` è organizzato per responsabilità:
 **`services/domain/`** — business logic di dominio
 - `entry_service` — CRUD entry + pipeline di indicizzazione (`index_entry` → `ingestion/pipeline.run()`)
 - `project_service` — CRUD progetti + gestione membri
+- `folder_service` — CRUD cartelle + tree build, guardie duplicate name, circular move guard, membership check, lazy root creation
 - `auth_service` — JWT, hashing argon2, `build_token_response`
 - `config_service` — merge schema+values, validazione, cifratura/decifratura secret
 
@@ -424,11 +443,34 @@ POST /entries/:id/index  (trigger: manuale tramite pulsante "Indicizza" nella to
           - embedding dei soli leaf node (Settings.embed_model → LiteLLMEmbeddingProvider)
           - salva leaf + embedding in collection chunks (MongoDBAtlasVectorSearch)
           - imposta vector_status = "indexed"
+        → in caso di errore: imposta vector_status = "error"
   → Response: EntryResponse con vector_status aggiornato
   → UI: indicatore "✓ Indexed" (scompare dopo 3s)
 
 Nota: summary e tag NON vengono generati automaticamente.
 Sono gestiti manualmente dall'utente nell'editor.
+```
+
+### Folder Management
+```
+POST /projects/:id/folders { name, parent_id? }
+  → membership check (member/owner)
+  → se parent_id assente: crea in root-level (con lazy root-folder creation per progetti legacy)
+  → guardia nomi duplicati allo stesso livello (case-insensitive)
+
+PUT /projects/:id/folders/:folderId/move { new_parent_id | null }
+  → blocca move cross-project
+  → blocca move circolare (cartella dentro un suo discendente)
+  → aggiorna path della cartella + rewrite cascata path discendenti
+
+DELETE /projects/:id/folders/:folderId
+  → consentito solo se la cartella non contiene subfolder né entry
+
+Frontend
+  → Sidebar renderizza FolderTree sopra le entry root
+  → drag-and-drop con @dnd-kit/core per entry e cartelle
+  → context menu (rename/move/new subfolder/delete) con regole di sicurezza lato UI + backend
+  → lo spostamento entry via update folder_id imposta vector_status = "outdated"
 ```
 
 ### Semantic Search

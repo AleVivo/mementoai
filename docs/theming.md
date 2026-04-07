@@ -1,3 +1,7 @@
+---
+generated_by: GitHub Copilot (GPT-5.3-Codex)
+last_updated: 2026-04-07
+---
 # MementoAI — Guida al Theming
 
 Tutto il sistema di colori è centralizzato in un unico file: `ui/src/App.css`.
